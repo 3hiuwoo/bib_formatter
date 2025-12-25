@@ -19,7 +19,7 @@ def main(input_path, output_path):
     # Parse strictly to understand the data (Which ID belongs to which Venue?)
     with open(input_path, "r", encoding="utf-8") as f:
         parser = bibtexparser.bparser.BibTexParser(common_strings=True)
-        bib_db = parser.parse_file(f)
+        bib_db = bibtexparser.load(f, parser=parser)
 
     # Create a "Patch List": { "ENTRY_ID": { "field": "value", ... } }
     patches = {}

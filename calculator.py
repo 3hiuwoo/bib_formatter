@@ -9,7 +9,7 @@ def list_templates(input_file):
     try:
         with open(input_file, "r", encoding="utf-8") as bibtex_file:
             parser = bibtexparser.bparser.BibTexParser(common_strings=True)
-            bib_database = parser.parse_file(bibtex_file)
+            bib_database = bibtexparser.load(bibtex_file, parser=parser)
     except FileNotFoundError:
         print(f"Error: Could not find '{input_file}'.")
         return
