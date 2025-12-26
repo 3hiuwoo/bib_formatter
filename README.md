@@ -1,33 +1,76 @@
-# BibCompletion (Under Development)
+# Bib Formatter
 
-## File Explain
+Small BibTeX utility toolkit to auto-complete missing fields, check formatting quality, and maintain reusable templates.
 
-- **`main.py` / `completer.py`**: Core completion tool. Reads a source `.bib`, matches entries against `templates.py`, and fills missing fields. Supports dry-run and logs for conflicts & missing (venue, year).
-  - Dry-run (default if no `--output`): `python completer.py input.bib`
-  - Write output: `python completer.py input.bib --output output.bib`
-  - Logs: `--conflict-log path.txt` and `--missing-log path.txt` (defaults: `input.bib.conflicts.txt`, `input.bib.missing_templates.txt`)
+## Quick start
 
-- **`checker.py`**: Unified validation tool. Checks missing fields, Title Case, and smart protection for technical terms.
-  - Missing fields: `python checker.py input.bib --fields month,publisher --entry-types inproceedings,article`
-  - Title Case (APA default): `python checker.py input.bib --title-case --title-style apa`
-  - Smart protection (quoting): `python checker.py input.bib --quote --quote-terms Gaussian,Kalman --quote-vocab-file my_terms.txt`
+```bash
+pip install bibtexparser
+```
 
-- **`titlecase_checker.py`**: Standalone Title Case checker (shares logic with checker). Default style: **APA** (first word, words ≥4 letters, major words, and all parts of hyphenated major words like `Class-Incremental`). Usage: `python titlecase_checker.py input.bib --style apa`
+### 1. Complete missing fields — `completer.py`
 
-- **`quoter.py`**: Thin wrapper to run only the smart-protection scan (uses the unified checker logic).
-  - Usage: `python quoter.py input.bib --terms Gaussian,Kalman` or `--vocab-file my_terms.txt`
+- Preview only (no write-back, logs are still generated):
 
-- **`bib2py.py`**: Convert BibTeX entries to `templates.py` format and (optionally) append new templates automatically.
-  - Print snippets only: `python bib2py.py new_confs.bib`
-  - Auto-append missing keys to templates (backup created): `python bib2py.py new_confs.bib --update --templates-path templates.py`
+  ```bash
+  python completer.py input.bib
+  ```
 
-## TODO
+- Write completed output (overwrites the given output path) and generate logs:
 
-1. Complete Readme
-2. Refine Project Structure
-3. Add more annotations
-4. Support commandline arg. parsing
-5. Support more general functionality
-6. Refine the code including unifying variable names, unifying string formatting, etc.
-7. Pack all things up
-8. Support web claw or LLM assisting template completion
+  ```bash
+  python completer.py input.bib --output output.bib
+  ```
+
+- Choose a log directory: `--log-dir logs/` (default current directory, outputs `*.conflicts.txt` and `*.missing_templates.txt`).
+
+### 2. Quality checks — `checker.py`
+
+- Missing-field check (default entry types: inproceedings, article, proceedings, conference):
+
+  ```bash
+  python checker.py input.bib --fields month,publisher
+  ```
+
+- Title Case suggestions (APA style by default, change with `--title-style apa`):
+
+  ```bash
+  python checker.py input.bib --title-case --title-style apa
+  ```
+
+- Smart protection for technical terms (suggest braces), with optional custom vocab:
+
+  ```bash
+  python checker.py input.bib --quote --quote-terms Gaussian,Kalman --quote-vocab-file my_terms.txt
+  # To skip built-in vocab, add --quote-no-default
+  ```
+
+### 3. Maintain the template library — `bib2py.py`
+
+- Generate template snippets from a `.bib` file (print only, do not write):
+
+  ```bash
+  python bib2py.py new_confs.bib
+  ```
+
+- Merge into `templates.py` directly (sorted by year descending, auto-creates a `.bak` backup):
+
+  ```bash
+  python bib2py.py new_confs.bib --update --templates-path templates.py
+  ```
+
+## Suggested workflow
+
+1. Run `completer.py input.bib --output completed.bib` to fill missing fields using existing templates and inspect conflict/missing-template logs.
+2. Run `checker.py` to:
+   - `--fields` find required-field gaps;
+   - `--title-case` get Title Case suggestions;
+   - `--quote` spot technical terms needing braces.
+3. When you encounter new venue/year combos, gather them into a separate `.bib` and run `bib2py.py --update` to refresh `templates.py` for future reuse.
+
+## Templates
+
+- Main templates live in `templates.py`, keyed by `(venue, year)` with a dict of fields to fill.
+- The `templates/` folder holds historical/backup `.bib` files for reference.
+
+Feel free to extend templates and vocab to match your bibliography!
