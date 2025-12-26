@@ -36,6 +36,7 @@ pip install bibtexparser
 
   ```bash
   python checker.py input.bib --title-case --title-style apa
+  # Add --title-apply To modify titles to title case in the original file
   ```
 
 - Smart protection for technical terms (suggest braces), with optional custom vocab:

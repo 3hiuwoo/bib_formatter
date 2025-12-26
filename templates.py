@@ -35,13 +35,6 @@ TEMPLATES = {
         "month": 'February',
     },
 
-    ("ACM Trans. Knowl. Discov. Data", "2025"): {
-        "issn": '1556-4681',
-        "address": 'New York, NY, USA',
-        "publisher": 'Association for Computing Machinery',
-        "issue_date": 'January 2025',
-    },
-
     ("ACM Transactions on Knowledge Discovery from Data", "2025"): {
         "issn": '1556-472X',
         "address": 'New York, NY, USA',

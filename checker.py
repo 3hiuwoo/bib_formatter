@@ -233,6 +233,11 @@ if __name__ == "__main__":
         help="Check that titles are in Title Case (APA by default).",
     )
     parser.add_argument(
+        "--title-apply",
+        action="store_true",
+        help="Apply Title Case suggestions in-place (implies --title-case).",
+    )
+    parser.add_argument(
         "--title-style",
         type=str,
         default="apa",
@@ -279,12 +284,17 @@ if __name__ == "__main__":
         check_missing_fields(args.input, required_fields, entry_types)
 
     # Title case
-    if args.title_case:
+    if args.title_case or args.title_apply:
         print("\n")
         style = get_style(args.title_style)
         stopwords = set(style.stopwords)
         stopwords.update([s.lower() for s in parse_list_arg(args.extra_stopwords)])
-        check_title_case(args.input, stopwords, style.name)
+        check_title_case(
+            args.input,
+            stopwords,
+            style.name,
+            apply=args.title_apply,
+        )
 
     # Smart protection
     if args.quote:

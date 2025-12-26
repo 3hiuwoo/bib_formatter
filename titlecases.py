@@ -1,6 +1,7 @@
 import argparse
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 import bibtexparser
@@ -215,6 +216,7 @@ def check_title_case(
     input_path: str,
     stopwords: Optional[Set[str]] = None,
     style_name: str = "apa",
+    apply: bool = False,
 ) -> None:
     style = get_style(style_name)
     stopwords = stopwords or set(style.stopwords)
@@ -227,11 +229,13 @@ def check_title_case(
         print(f"❌ Error: File '{input_path}' not found.")
         return
 
-    print(f"📝 Checking Title Case for {input_path}\n")
-    print(f"{'ID':<40} | {'Issue':<40} | Suggestion")
-    print("-" * 95)
+    if not apply:
+        print(f"📝 Checking Title Case for {input_path}\n")
+        print(f"{'ID':<40} | {'Issue':<40} | Suggestion")
+        print("-" * 95)
 
     issues = 0
+    changed: List[Tuple[str, str, str]] = []  # (ID, old, new)
     for entry in bib_db.entries:
         title = entry.get("title")
         if not title:
@@ -245,12 +249,55 @@ def check_title_case(
 
         if normalized_orig != normalized_sugg:
             issues += 1
-            print(f"{entry.get('ID', ''):<40} | {title:<40} | {suggestion}")
+            if apply:
+                entry["title"] = suggestion
+                changed.append((entry.get("ID", ""), title, suggestion))
+            else:
+                print(f"{entry.get('ID', ''):<40} | {title:<40} | {suggestion}")
 
-    print("-" * 95)
-    if issues == 0:
-        print(
-            "✅ All titles already appear to be in Title Case (with stopword handling)."
-        )
+    if apply:
+        # Apply changes in-place while preserving comments and original formatting as much as possible
+        changed_map = {eid: new for eid, _, new in changed}
+        replacements = 0
+
+        lines = Path(input_path).read_text(encoding="utf-8").splitlines(keepends=True)
+        new_lines: List[str] = []
+        current_id: Optional[str] = None
+
+        for line in lines:
+            match_entry = re.match(r"@\w+\s*\{\s*([^,]+),", line)
+            if match_entry:
+                current_id = match_entry.group(1).strip()
+
+            if current_id and current_id in changed_map:
+                m_title = re.match(
+                    r"(\s*title\s*=\s*\{)(.*?)(\}\s*,?\s*$)",
+                    line,
+                    flags=re.IGNORECASE,
+                )
+                if m_title:
+                    prefix, _old, suffix = m_title.groups()
+                    new_val = changed_map[current_id]
+                    # newline = "" if not line.endswith("\n") else "\n"
+                    new_lines.append(f"{prefix}{new_val}{suffix}")
+                    replacements += 1
+                    continue
+
+            new_lines.append(line)
+
+        Path(input_path).write_text("".join(new_lines), encoding="utf-8")
+
+        if replacements == 0:
+            print("✅ No title-case updates needed; file left unchanged.")
+        else:
+            print(
+                f"✏️  Applied title-case suggestions to {input_path} ({replacements} titles updated)."
+            )
     else:
-        print(f"⚠️  Found {issues} titles that could be normalized.")
+        print("-" * 95)
+        if issues == 0:
+            print(
+                "✅ All titles already appear to be in Title Case (with stopword handling)."
+            )
+        else:
+            print(f"⚠️  Found {issues} titles that could be normalized.")
