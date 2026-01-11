@@ -54,6 +54,7 @@ DEFAULT_VOCAB = {
     "huffman",
     "turing",
     "Kronecker",
+    "arnold",
 }
 
 

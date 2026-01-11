@@ -184,3 +184,7 @@ The modified `.bib` file is not guaranteed to be well formatted. Use:
 
 - [**BibTex Tidy**](https://flamingtempura.github.io/bibtex-tidy/) for final formatting
 - VS Code's LaTeX Workshop extension
+
+## 📋 TODO
+
+- Add NER to `checker.py` for advacned brackets quotation need detection for names over static vocab.
