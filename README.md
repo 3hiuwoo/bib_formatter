@@ -188,3 +188,4 @@ The modified `.bib` file is not guaranteed to be well formatted. Use:
 ## 📋 TODO
 
 - Add NER to `checker.py` for advacned brackets quotation need detection for names over static vocab.
+- Improve the robustness of title case formatting.
