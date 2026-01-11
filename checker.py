@@ -1,13 +1,14 @@
 import argparse
 import re
 from pathlib import Path
-from typing import Iterable, List, Sequence, Set, Tuple
+from typing import Dict, Iterable, List, Sequence, Set, Tuple
 
 import bibtexparser
 
 from titlecases import DEFAULT_STOPWORDS, check_title_case, get_style
 
 
+# ---------- Bib file checking ----------
 DEFAULT_ENTRY_TYPES = ["inproceedings", "article", "proceedings", "conference"]
 # DEFAULT_REQUIRED_FIELDS = ["month"]
 
@@ -52,6 +53,7 @@ DEFAULT_VOCAB = {
     "shannon",
     "huffman",
     "turing",
+    "Kronecker",
 }
 
 
@@ -210,11 +212,136 @@ def check_smart_protection(
         print(f"⚠️  Found {issues_found} terms to protect.")
 
 
+# ------------- Template checking ----------
+# Default required fields for template checking
+DEFAULT_JOURNAL_FIELDS = ["publisher", "issn"]
+DEFAULT_PROCEEDINGS_FIELDS = ["venue", "publisher", "month"]
+
+
+def check_template_fields(
+    templates_path: Path,
+    journal_fields: Sequence[str],
+    proceedings_fields: Sequence[str],
+) -> None:
+    """
+    Check templates for missing fields.
+
+    This helps maintain consistency across templates by identifying
+    which templates are missing certain expected fields.
+    """
+    import importlib.util
+
+    # Load templates module
+    spec = importlib.util.spec_from_file_location("templates", templates_path)
+    if spec is None or spec.loader is None:
+        print(f"❌ Error: Cannot load templates from {templates_path}")
+        return
+
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+    except Exception as e:
+        print(f"❌ Error loading templates: {e}")
+        return
+
+    journal_templates: Dict[str, Dict] = getattr(mod, "JOURNAL_TEMPLATES", {})
+    proceedings_templates: Dict[Tuple[str, str], Dict] = getattr(
+        mod, "PROCEEDINGS_TEMPLATES", {}
+    )
+
+    print(f"🔍 Checking templates in {templates_path}")
+    print(f"   Journal fields to check: {', '.join(journal_fields)}")
+    print(f"   Proceedings fields to check: {', '.join(proceedings_fields)}")
+    print()
+
+    # Check journals
+    journal_issues = []
+    if journal_fields:
+        print(f"{'Journal Name':<60} | Missing Fields")
+        print("-" * 90)
+
+        for name, fields in sorted(journal_templates.items()):
+            missing = [f for f in journal_fields if f not in fields or not fields[f]]
+            if missing:
+                journal_issues.append((name, missing))
+                print(f"{name[:60]:<60} | {', '.join(missing)}")
+
+        print("-" * 90)
+        if journal_issues:
+            print(
+                f"⚠️  {len(journal_issues)}/{len(journal_templates)} journals have missing fields"
+            )
+        else:
+            print(f"✅ All {len(journal_templates)} journals have required fields")
+
+    print()
+
+    # Check proceedings
+    proceedings_issues = []
+    if proceedings_fields:
+        print(f"{'Proceedings (Venue, Year)':<70} | Missing Fields")
+        print("-" * 100)
+
+        # Sort by year descending
+        sorted_procs = sorted(
+            proceedings_templates.items(),
+            key=lambda x: (-int(x[0][1]) if x[0][1].isdigit() else 0, x[0][0]),
+        )
+
+        for (venue, year), fields in sorted_procs:
+            missing = [
+                f for f in proceedings_fields if f not in fields or not fields[f]
+            ]
+            if missing:
+                proceedings_issues.append(((venue, year), missing))
+                display = f"({venue[:50]}, {year})"
+                print(f"{display:<70} | {', '.join(missing)}")
+
+        print("-" * 100)
+        if proceedings_issues:
+            print(
+                f"⚠️  {len(proceedings_issues)}/{len(proceedings_templates)} proceedings have missing fields"
+            )
+        else:
+            print(
+                f"✅ All {len(proceedings_templates)} proceedings have required fields"
+            )
+
+    # Summary by field
+    print("\n📊 Summary by field:")
+
+    if journal_fields:
+        print("\n  Journals:")
+        for field in journal_fields:
+            count = sum(
+                1
+                for _, fields in journal_templates.items()
+                if field not in fields or not fields[field]
+            )
+            print(f"    {field}: {count} missing")
+
+    if proceedings_fields:
+        print("\n  Proceedings:")
+        for field in proceedings_fields:
+            count = sum(
+                1
+                for _, fields in proceedings_templates.items()
+                if field not in fields or not fields[field]
+            )
+            print(f"    {field}: {count} missing")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Unified checker for BibTeX: missing fields, title case, and smart protection."
     )
-    parser.add_argument("input", type=str, help="Path to the input BibTeX (.bib) file")
+    parser.add_argument(
+        "input",
+        type=str,
+        nargs="?",  # Make optional for --check-templates mode
+        default="",
+        help="Path to the input BibTeX (.bib) file",
+    )
     parser.add_argument(
         "--fields",
         type=str,
@@ -271,8 +398,42 @@ if __name__ == "__main__":
         action="store_true",
         help="Do not include built-in technical vocabulary when running smart protection.",
     )
+    parser.add_argument(
+        "--check-templates",
+        action="store_true",
+        help="Check templates.py for missing fields instead of a bib file.",
+    )
+    parser.add_argument(
+        "--templates-path",
+        type=str,
+        default="templates.py",
+        help="Path to templates.py file (default: templates.py).",
+    )
+    parser.add_argument(
+        "--journal-fields",
+        type=str,
+        default=",".join(DEFAULT_JOURNAL_FIELDS),
+        help=f"Comma-separated fields to check in journal templates (default: {','.join(DEFAULT_JOURNAL_FIELDS)}).",
+    )
+    parser.add_argument(
+        "--proceedings-fields",
+        type=str,
+        default=",".join(DEFAULT_PROCEEDINGS_FIELDS),
+        help=f"Comma-separated fields to check in proceedings templates (default: {','.join(DEFAULT_PROCEEDINGS_FIELDS)}).",
+    )
 
     args = parser.parse_args()
+
+    # Template checking mode
+    if args.check_templates:
+        journal_fields = parse_list_arg(args.journal_fields)
+        proceedings_fields = parse_list_arg(args.proceedings_fields)
+        check_template_fields(
+            Path(args.templates_path),
+            journal_fields,
+            proceedings_fields,
+        )
+        exit(0)
 
     required_fields = parse_list_arg(args.fields)  # or DEFAULT_REQUIRED_FIELDS
     entry_types = [

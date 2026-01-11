@@ -1,24 +1,163 @@
-TEMPLATES = {
-    ("Expert Systems with Applications", "2026"): {
+"""
+Optimized Template Structure for BibCC
+
+Templates are separated into two categories:
+1. JOURNAL_TEMPLATES - Year-agnostic (journals have consistent metadata across years)
+2. PROCEEDINGS_TEMPLATES - Year-specific (conferences vary by year: venue, isbn, editor, etc.)
+
+This eliminates redundancy where the same journal was repeated for each year with identical fields.
+"""
+
+# Journal templates are keyed by journal name only (no year)
+# These fields are constant across all years for a given journal
+JOURNAL_TEMPLATES = {
+    "ACM Transactions on Knowledge Discovery from Data": {
+        "issn": '1556-472X',
+        "address": 'New York, NY, USA',
+        "publisher": 'Association for Computing Machinery',
+    },
+
+    "ACM Transactions on Multimedia Computing, Communications, and Applications": {
+        "issn": '1551-6857',
+        "address": 'New York, NY, USA',
+        "publisher": 'Association for Computing Machinery',
+    },
+
+    "Computer Vision and Image Understanding": {
+        "publisher": 'Elsevier',
+        "issn": '1077-3142',
+    },
+
+    "Expert Systems with Applications": {
         "publisher": 'Elsevier',
         "issn": '0957-4174',
     },
 
-    ("IEEE Transactions on Cognitive Communications and Networking", "2026"): {
+    "IEEE Access": {
+        "issn": '2169-3536',
         "publisher": 'IEEE',
-        "issn": '2332-7731',
     },
 
-    ("Neurocomputing", "2026"): {
+    "IEEE Internet of Things Journal": {
+        "issn": '2327-4662',
+        "publisher": 'IEEE',
+    },
+
+    "IEEE Transactions on Circuits and Systems for Video Technology": {
+        "issn": '1558-2205',
+        "publisher": 'IEEE',
+    },
+
+    "IEEE Transactions on Cognitive Communications and Networking": {
+        "issn": '2332-7731',
+        "publisher": 'IEEE',
+    },
+
+    "IEEE Transactions on Cybernetics": {
+        "issn": '2168-2267',
+        "publisher": 'IEEE',
+    },
+
+    "IEEE Transactions on Geoscience and Remote Sensing": {
+        "issn": '1558-0644',
+        "publisher": 'IEEE',
+    },
+
+    "IEEE Transactions on Image Processing": {
+        "issn": '1941-0042',
+        "publisher": 'IEEE',
+    },
+
+    "IEEE Transactions on Instrumentation and Measurement": {
+        "issn": '1557-9662',
+        "publisher": 'IEEE',
+    },
+
+    "IEEE Transactions on Knowledge and Data Engineering": {
+        "publisher": 'IEEE',
+        "issn": '1558-2191',
+    },
+
+    "IEEE Transactions on Multimedia": {
+        "issn": '1941-0077',
+        "publisher": 'IEEE',
+    },
+
+    "IEEE Transactions on Neural Networks and Learning Systems": {
+        "issn": '2162-2388',
+        "publisher": 'IEEE',
+    },
+
+    "IEEE Transactions on Pattern Analysis and Machine Intelligence": {
+        "issn": '1939-3539',
+        "publisher": 'IEEE',
+    },
+
+    "IEEE Transactions on Vehicular Technology": {
+        "issn": '1939-9359',
+        "publisher": 'IEEE',
+    },
+
+    "Image and Vision Computing": {
+        "publisher": 'Elsevier',
+        "issn": '0262-8856',
+    },
+
+    "Information Processing \& Management": {
+        "publisher": 'Elsevier',
+        "issn": '0306-4573',
+    },
+
+    "Information Sciences": {
+        "publisher": 'Elsevier',
+        "issn": '0020-0255',
+    },
+
+    "International Journal of Computer Vision": {
+        "address": 'Cham',
+        "publisher": 'Springer Nature Switzerland',
+        "issn": '1573-1405',
+    },
+
+    "Knowledge-Based Systems": {
+        "publisher": 'Elsevier',
+        "issn": '0950-7051',
+    },
+
+    "Nature Communications": {
+        "issn": '2041-1723',
+    },
+
+    "Neural Networks": {
+        "publisher": 'Elsevier',
+        "issn": '0893-6080',
+    },
+
+    "Neurocomputing": {
         "publisher": 'Elsevier',
         "issn": '0925-2312',
     },
 
-    ("Pattern Recognition", "2026"): {
+    "Pattern Recognition": {
         "publisher": 'Elsevier',
         "issn": '0031-3203',
     },
 
+    "Proceedings of the National Academy of Sciences": {
+        "issn": '1091-6490',
+        "publisher": 'National Academy of Sciences',
+    },
+
+    "Transactions on Machine Learning Research": {
+        "issn": '2835-8856',
+    },
+
+}
+
+
+# Proceedings templates are keyed by (venue_name, year) tuple
+# These fields vary by year: venue location, isbn, editor, month, etc.
+PROCEEDINGS_TEMPLATES = {
     ("2025 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)", "2025"): {
         "venue": 'Nashville, TN, USA',
         "issn": '2575-7075',
@@ -35,133 +174,27 @@ TEMPLATES = {
         "month": 'February',
     },
 
-    ("ACM Transactions on Knowledge Discovery from Data", "2025"): {
-        "issn": '1556-472X',
-        "address": 'New York, NY, USA',
-        "publisher": 'Association for Computing Machinery',
-    },
-
-    ("ACM Transactions on Multimedia Computing, Communications, and Applications", "2025"): {
-        "issn": '1551-6857',
-        "address": 'New York, NY, USA',
-        "publisher": 'Association for Computing Machinery',
-    },
-
     ("Computer Vision -- ECCV 2024", "2025"): {
         "venue": 'Milan, Italy',
         "editor": 'Leonardis, Ale{\\v{s}} and Ricci, Elisa and Roth, Stefan and Russakovsky, Olga and Sattler, Torsten and Varol, G{\\"u}l',
         "issn": '1611-3349',
         "address": 'Cham',
         "publisher": 'Springer Nature Switzerland',
-        "isbn": '978-3-031-73030-6',
         "series": 'Lecture Notes in Computer Science',
     },
 
-    ("Expert Systems with Applications", "2025"): {
-        "publisher": 'Elsevier',
-        "issn": '0957-4174',
-    },
-
-    ("IEEE Access", "2025"): {
-        "issn": '2169-3536',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Internet of Things Journal", "2025"): {
-        "issn": '2327-4662',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Circuits and Systems for Video Technology", "2025"): {
-        "issn": '1558-2205',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Cognitive Communications and Networking", "2025"): {
-        "issn": '2332-7731',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Cybernetics", "2025"): {
-        "issn": '2168-2267',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Geoscience and Remote Sensing", "2025"): {
-        "issn": '1558-0644',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Image Processing", "2025"): {
-        "issn": '1941-0042',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Instrumentation and Measurement", "2025"): {
-        "issn": '1557-9662',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Knowledge and Data Engineering", "2025"): {
-        "publisher": 'IEEE',
-        "issn": '1558-2191',
-    },
-
-    ("IEEE Transactions on Multimedia", "2025"): {
-        "issn": '1941-0077',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Neural Networks and Learning Systems", "2025"): {
-        "issn": '2162-2388',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Pattern Analysis and Machine Intelligence", "2025"): {
-        "issn": '1939-3539',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Vehicular Technology", "2025"): {
-        "issn": '1939-9359',
-        "publisher": 'IEEE',
-    },
-
-    ("Image and Vision Computing", "2025"): {
-        "publisher": 'Elsevier',
-        "issn": '0262-8856',
-    },
-
-    ("Information Sciences", "2025"): {
-        "publisher": 'Elsevier',
-        "issn": '0020-0255',
-    },
-
-    ("International Journal of Computer Vision", "2025"): {
-        "address": 'Cham',
-        "publisher": 'Springer Nature Switzerland',
-        "issn": '1573-1405',
+    ("Findings of the Association for Computational Linguistics: ACL 2025", "2025"): {
+        "venue": 'Vienna, Austria',
+        "publisher": 'Association for Computational Linguistics',
+        "month": 'July',
+        "isbn": '979-8-89176-256-5',
+        "editor": 'Che, Wanxiang  and Nabende, Joyce  and Shutova, Ekaterina  and Pilehvar, Mohammad Taher',
     },
 
     ("Interspeech 2025", "2025"): {
         "month": 'August',
         "venue": 'Rotterdam, The Netherlands',
         "issn": '2958-1796',
-    },
-
-    ("Knowledge-Based Systems", "2025"): {
-        "publisher": 'Elsevier',
-        "issn": '0950-7051',
-    },
-
-    ("Neurocomputing", "2025"): {
-        "publisher": 'Elsevier',
-        "issn": '0925-2312',
-    },
-
-    ("Pattern Recognition", "2025"): {
-        "publisher": 'Elsevier',
-        "issn": '0031-3203',
     },
 
     ("Proceedings of the 33rd ACM International Conference on Multimedia", "2025"): {
@@ -196,16 +229,15 @@ TEMPLATES = {
         "issn": '2374-3468',
         "address": 'Washington, DC, USA',
         "publisher": 'AAAI Press',
-        "month": 'April',
     },
 
     ("Proceedings of the Eighteenth ACM International Conference on Web Search and Data Mining", "2025"): {
-        "isbn": '9798400713293',
+        "isbn": '979-8-4007-1329-3',
         "series": "WSDM '25",
         "address": 'New York, NY, USA',
         "publisher": 'Association for Computing Machinery',
         "venue": 'Hannover, Germany',
-        "month": 'February',
+        "month": 'March',
     },
 
     ("Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)", "2025"): {
@@ -261,32 +293,6 @@ TEMPLATES = {
         "month": 'December',
     },
 
-    ("Expert Systems with Applications", "2024"): {
-        "publisher": 'Elsevier',
-        "issn": '0957-4174',
-    },
-
-    ("IEEE Transactions on Circuits and Systems for Video Technology", "2024"): {
-        "issn": '1558-2205',
-        "publisher": 'IEEE',
-    },
-
-    ("IEEE Transactions on Image Processing", "2024"): {
-        "issn": '1941-0042',
-        "publisher": 'IEEE',
-    },
-
-    ("Information Processing \& Management", "2024"): {
-        "publisher": 'Elsevier',
-        "issn": '0306-4573',
-    },
-
-    ("International Journal of Computer Vision", "2024"): {
-        "address": 'Cham',
-        "publisher": 'Springer Nature Switzerland',
-        "issn": '1573-1405',
-    },
-
     ("Medical Image Computing and Computer Assisted Intervention -- MICCAI 2024", "2024"): {
         "month": 'October',
         "venue": 'Marrakesh, Morocco',
@@ -296,20 +302,10 @@ TEMPLATES = {
         "publisher": 'Springer Nature Switzerland',
     },
 
-    ("Neural Networks", "2024"): {
-        "publisher": 'Elsevier',
-        "issn": '0893-6080',
-    },
-
-    ("Pattern Recognition", "2024"): {
-        "publisher": 'Elsevier',
-        "issn": '0031-3203',
-    },
-
     ("Proceedings of the 21st ACM Conference on Embedded Networked Sensor Systems", "2024"): {
         "month": 'November',
         "venue": 'Istanbul, Turkiye',
-        "isbn": '9798400704147',
+        "isbn": '979-8-4007-0414-7',
         "series": "SenSys '23",
         "address": 'New York, NY, USA',
         "publisher": 'Association for Computing Machinery',
@@ -338,7 +334,7 @@ TEMPLATES = {
         "isbn": '978-1-57735-887-9',
         "address": 'Washington, DC, USA',
         "publisher": 'AAAI Press',
-        "month": 'March',
+        "month": 'February',
     },
 
     ("Proceedings of the Thirty-Third International Joint Conference on Artificial Intelligence, {IJCAI-24}", "2024"): {
@@ -352,10 +348,6 @@ TEMPLATES = {
     ("The Twelfth International Conference on Learning Representations", "2024"): {
         "month": 'May',
         "venue": 'Vienna, Austria',
-    },
-
-    ("Transactions on Machine Learning Research", "2024"): {
-        "issn": '2835-8856',
     },
 
     ("2023 IEEE International Conference on Systems, Man, and Cybernetics (SMC)", "2023"): {
@@ -413,11 +405,6 @@ TEMPLATES = {
         "address": 'Red Hook, NY, USA',
         "publisher": 'Curran Associates, Inc.',
         "month": 'December',
-    },
-
-    ("Pattern Recognition", "2023"): {
-        "publisher": 'Elsevier',
-        "issn": '0031-3203',
     },
 
     ("Proceedings of The 2nd Conference on Lifelong Learning Agents", "2023"): {
@@ -493,15 +480,11 @@ TEMPLATES = {
     ("Computer Vision -- ECCV 2022", "2022"): {
         "venue": 'Tel Aviv, Israel',
         "editor": "Avidan, Shai and Brostow, Gabriel and Ciss{\\'e}, Moustapha and Farinella, Giovanni Maria and Hassner, Tal",
-        "isbn": '978-3-031-19809-0',
         "address": 'Cham',
         "publisher": 'Springer Nature Switzerland',
         "month": 'October',
-    },
-
-    ("Computer Vision and Image Understanding", "2022"): {
-        "publisher": 'Elsevier',
-        "issn": '1077-3142',
+        "series": 'Lecture Notes in Computer Science',
+        "issn": '1611-3349',
     },
 
     ("2021 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)", "2021"): {
@@ -518,6 +501,14 @@ TEMPLATES = {
         "isbn": '978-1-6654-4899-4',
         "publisher": 'IEEE',
         "month": 'June',
+    },
+
+    ("2021 IEEE/CVF International Conference on Computer Vision (ICCV)", "2021"): {
+        "venue": 'Montreal, QC, Canada',
+        "publisher": 'IEEE',
+        "month": 'October',
+        "isbn": '978-1-6654-2812-5',
+        "issn": '2380-7504',
     },
 
     ("Advances in Neural Information Processing Systems", "2021"): {
@@ -550,6 +541,32 @@ TEMPLATES = {
         "month": 'June',
     },
 
+    ("Proceedings of the AAAI Conference on Artificial Intelligence", "2021"): {
+        "venue": 'Stockholmsmässan, Stockholm Sweden',
+        "publisher": 'AAAI Press',
+        "month": 'February',
+        "isbn": '978-1-57735-866-4',
+        "issn": '2374-3468',
+        "series": 'Proceedings of Machine Learning Research',
+        "address": 'Palo Alto, California, USA',
+    },
+
+    ("2020 IEEE Winter Conference on Applications of Computer Vision (WACV)", "2020"): {
+        "venue": 'Snowmass, CO, USA',
+        "publisher": 'IEEE',
+        "month": 'March',
+        "isbn": '978-1-7281-6553-0',
+        "issn": '2642-9381',
+    },
+
+    ("2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)", "2020"): {
+        "venue": 'Seattle, WA, USA',
+        "publisher": 'IEEE',
+        "month": 'June',
+        "isbn": '978-1-7281-7168-5',
+        "issn": '2575-7075',
+    },
+
     ("2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW)", "2020"): {
         "venue": 'Seattle, WA, USA',
         "issn": '2160-7516',
@@ -558,8 +575,14 @@ TEMPLATES = {
         "month": 'June',
     },
 
-    ("Nature Communications", "2020"): {
-        "issn": '2041-1723',
+    ("Computer Vision -- ECCV 2020", "2020"): {
+        "venue": 'Glasgow, UK',
+        "publisher": 'Springer International Publishing',
+        "month": 'August',
+        "issn": '1611-3349',
+        "editor": 'Vedaldi, Andrea and Bischof, Horst and Brox, Thomas and Frahm, Jan-Michael',
+        "series": 'Lecture Notes in Computer Science',
+        "address": 'Cham',
     },
 
     ("2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)", "2019"): {
@@ -583,6 +606,23 @@ TEMPLATES = {
         "month": 'May',
     },
 
+    ("Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery \& Data Mining", "2019"): {
+        "venue": 'Anchorage, AK, USA',
+        "publisher": 'Association for Computing Machinery',
+        "month": 'August',
+        "isbn": '978-1-4503-6201-6',
+        "series": "KDD '19",
+        "address": 'New York, NY, USA',
+    },
+
+    ("Proceedings of the 36th International Conference on Machine Learning", "2019"): {
+        "venue": 'Long Beach, CA, USA',
+        "publisher": 'PMLR',
+        "month": 'June',
+        "editor": 'Chaudhuri, Kamalika and Salakhutdinov, Ruslan',
+        "series": 'Proceedings of Machine Learning Research',
+    },
+
     ("2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition", "2018"): {
         "venue": 'Salt Lake City, UT, USA',
         "issn": '2575-7075',
@@ -591,26 +631,40 @@ TEMPLATES = {
         "month": 'June',
     },
 
+    ("Advances in Neural Information Processing Systems", "2018"): {
+        "venue": 'Montreal, QC, Canada',
+        "publisher": 'Curran Associates, Inc.',
+        "month": 'December',
+        "isbn": '978-1-5108-8447-2',
+        "editor": 'S. Bengio and H. Wallach and H. Larochelle and K. Grauman and N. Cesa-Bianchi and R. Garnett',
+        "address": 'Red Hook, NY, USA',
+    },
+
     ("British Machine Vision Conference (BMVC)", "2018"): {
         "month": 'September',
+        "venue": 'Northumbria University, Newcastle, UK',
     },
 
     ("Computer Vision -- ECCV 2018", "2018"): {
         "venue": 'Munich, Germany',
         "editor": 'Ferrari, Vittorio and Hebert, Martial and Sminchisescu, Cristian and Weiss, Yair',
-        "isbn": '978-3-030-01219-9',
         "address": 'Cham',
         "publisher": 'Springer International Publishing',
         "month": 'September',
-    },
-
-    ("IEEE Transactions on Pattern Analysis and Machine Intelligence", "2018"): {
-        "issn": '1939-3539',
-        "publisher": 'IEEE',
+        "issn": '1611-3349',
+        "series": 'Lecture Notes in Computer Science',
     },
 
     ("International Conference on Learning Representations", "2018"): {
         "venue": 'Vancouver, BC, Canada',
+    },
+
+    ("Proceedings of the 35th International Conference on Machine Learning", "2018"): {
+        "venue": 'Stockholmsmässan, Stockholm Sweden',
+        "publisher": 'PMLR',
+        "month": 'July',
+        "editor": 'Dy, Jennifer and Krause, Andreas',
+        "series": 'Proceedings of Machine Learning Research',
     },
 
     ("Advances in Neural Information Processing Systems", "2017"): {
@@ -631,12 +685,6 @@ TEMPLATES = {
         "month": 'August',
     },
 
-    ("Proceedings of the National Academy of Sciences", "2017"): {
-        "eprint": 'https://www.pnas.org/doi/pdf/10.1073/pnas.1611835114',
-        "issn": '1091-6490',
-        "publisher": 'National Academy of Sciences',
-    },
-
     ("Advances in Neural Information Processing Systems", "2016"): {
         "venue": 'Barcelona, Spain',
         "month": 'December',
@@ -645,10 +693,12 @@ TEMPLATES = {
     ("Computer Vision -- ECCV 2016", "2016"): {
         "venue": 'Amsterdam, Netherlands',
         "editor": 'Leibe, Bastian and Matas, Jiri and Sebe, Nicu and Welling, Max',
-        "isbn": '978-3-319-46493-0',
         "address": 'Cham',
         "publisher": 'Springer International Publishing',
         "month": 'October',
+        "issn": '1611-3349',
+        "series": 'Lecture Notes in Computer Science',
     },
 
 }
+

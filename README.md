@@ -1,92 +1,186 @@
-# 📚 BibTex Check & Complete (BibCC)
+# 📚 BibTeX Check & Complete (BibCC)
 
 Small BibTeX utility toolkit to auto-complete missing fields, check formatting quality, and maintain reusable templates.
 
 ## 🚀 Quick start
 
 ```bash
-pip install bibtexparser
+pip install bibtexparser pyyaml
 ```
 
-### 🧩 Complete missing fields — `completer.py`
+## 🧩 Core Tools
 
-- Preview only (no write-back, logs generated):
+### Complete missing fields — `completer.py`
+
+- **Preview only** (no write-back, generates logs and YAML for missing templates):
 
   ```bash
   python completer.py input.bib
   ```
 
-- Choose a log directory: `--log-dir logs/` (default current directory, outputs `*.conflicts.txt` and `*.missing_templates.txt`).
-
-- Write completed output (overwrites the given output path):
+- **Write completed output** (overwrites the given output path):
 
   ```bash
   python completer.py input.bib --output output.bib
   ```
 
-### ✅ Quality checks — `checker.py`
+- **Choose a log directory**: `--log-dir logs/`
 
-- Missing-field check (default entry types: inproceedings, article, proceedings, conference):
+### Quality checks — `checker.py`
+
+- **Missing-field check** (default entry types: inproceedings, article, proceedings, conference):
 
   ```bash
   python checker.py input.bib --fields month,publisher
   ```
 
-- Title Case suggestions (APA style by default, change with `--title-style apa`):
+- **Title Case suggestions** (APA style by default):
 
   ```bash
   python checker.py input.bib --title-case --title-style apa
-  # Add --title-apply To modify titles to title case in the original file
+  # Add --title-apply to modify titles in the original file
   ```
 
-- Smart protection for technical terms (suggest braces), with optional custom vocab:
+- **Smart protection** for technical terms (suggest braces):
 
   ```bash
-  python checker.py input.bib --quote --quote-terms Gaussian,Kalman --quote-vocab-file my_terms.txt
-  # To skip built-in vocab, add --quote-no-default
+  python checker.py input.bib --quote --quote-terms Gaussian,Kalman
   ```
 
-### 🗂️ Maintain the template library — `bib2py.py`
-
-- Generate template snippets from a `.bib` file (print only, do not write):
+- **Template field check** (check templates.py for missing fields):
 
   ```bash
-  python bib2py.py new_confs.bib
+  # Check with default fields (publisher, issn for journals; venue, publisher, month for proceedings)
+  python checker.py --check-templates
+
+  # Check with custom fields
+  python checker.py --check-templates --journal-fields publisher,issn --proceedings-fields venue,month,isbn
   ```
 
-- Merge into `templates.py` directly (sorted by year descending, auto-creates a `.bak` backup):
+## 🗂️ Template Management
 
-  ```bash
-  python bib2py.py new_confs.bib --update --templates-path templates.py
-  ```
+### Template Structure
 
-## 🧭 Suggested workflow
+Templates are separated into two categories in `templates.py`:
 
-### 🛠️ Completion
+1. **`JOURNAL_TEMPLATES`** — Year-agnostic (journals have consistent metadata)
+2. **`PROCEEDINGS_TEMPLATES`** — Year-specific (conferences vary by year)
 
-1. Run `completer.py input.bib` without output to check missing fields, conflict fields and missing-template.
+This eliminates redundancy where the same journal was repeated for each year.
 
-2. Resolve conflict fields by updating templates or entry.
+### Workflow for Adding Templates
 
-3. Gather new venue/year combos into a separate `.bib` (under `templates/`) and run `bib2py.py --update` to refresh `templates.py` for future reuse.
+1. Run `completer.py` → generates `*.missing_templates.yaml`
+2. Fill in the YAML file directly with required fields
+3. Run `yaml2templates.py` to update templates
 
-4. Run `completer.py input.bib --output output.bib` to complete the file. (See Additional resources for additional formatting)
+### Step-by-step
 
-### 🔍 Validation
+1. **Identify missing templates**:
 
-Run `checker.py` to:
+   ```bash
+   python completer.py input.bib
+   # Creates: input.bib.missing_templates.yaml
+   ```
 
-- `--fields` find required-field gaps;
-- `--title-case` get Title Case suggestions;
-- `--quote` spot technical terms needing braces.
+2. **Fill in the YAML file** with required metadata:
 
-## 🧾 Templates
+   ```yaml
+   templates:
+     - venue: "IEEE Transactions on Example"
+       year: "2025"
+       type: journal
+       fields:
+         publisher: "IEEE"
+         issn: "1234-5678"
 
-- Main templates live in `templates.py`, keyed by `(venue, year)` with a dict of fields to fill.
-- The `templates/` folder holds historical/backup `.bib` files for reference.
+     - venue: "2025 Example Conference"
+       year: "2025"
+       type: proceedings
+       fields:
+         venue: "City, Country"
+         publisher: "IEEE"
+         month: "June"
+         isbn: "978-..."
+   ```
 
-## 🔗 Additional resources
+3. **Update templates**:
 
-The modified `.bib` file is not guaranteed to be well formatted, thanks to [**BibTex Tidy**](https://flamingtempura.github.io/bibtex-tidy/) and VS Code's LaTex Workshop extension for final formatting.
+   ```bash
+   # Preview changes
+   python yaml2templates.py input.bib.missing_templates.yaml
 
-Feel free to extend templates and vocab to match your bibliography!
+   # Apply changes
+   python yaml2templates.py input.bib.missing_templates.yaml --update
+   ```
+
+4. **Re-run completer** to complete entries:
+
+   ```bash
+   python completer.py input.bib --output output.bib
+   ```
+
+### Incomplete Entries
+
+Entries missing year or venue (e.g., arxiv preprints, misc entries) are automatically detected and reported separately in `*.incomplete_entries.txt`. These do not contribute to the YAML file since they cannot be matched to templates.
+
+## 📁 File Structure
+
+```text
+bibcc/
+├── completer.py          # Main completion tool
+├── checker.py            # Quality checking tool
+├── yaml2templates.py     # YAML → templates converter
+├── templates.py          # Templates (journals + proceedings)
+└── titlecases.py         # Title case utilities
+```
+
+## 🧾 Template Types
+
+### Journal Templates (year-agnostic)
+
+```python
+JOURNAL_TEMPLATES = {
+    "IEEE Transactions on Image Processing": {
+        "publisher": "IEEE",
+        "issn": "1941-0042",
+    },
+}
+```
+
+Journals have consistent metadata across all years, so they're keyed by name only.
+
+### Proceedings Templates (year-specific)
+
+```python
+PROCEEDINGS_TEMPLATES = {
+    ("2024 IEEE/CVF CVPR", "2024"): {
+        "venue": "Seattle, WA, USA",
+        "publisher": "IEEE",
+        "month": "June",
+        "isbn": "...",
+    },
+}
+```
+
+Proceedings/conferences have year-specific details (venue location, ISBN, editors).
+
+## 🔧 Common Fields Reference
+
+| Field       | Journals   | Proceedings   |
+| ----------- | ---------- | ------------- |
+| `publisher` | ✅         | ✅            |
+| `issn`      | ✅         | Sometimes     |
+| `address`   | Optional   | Optional      |
+| `venue`     | ❌         | ✅ (location) |
+| `month`     | ❌         | ✅            |
+| `isbn`      | ❌         | ✅            |
+| `editor`    | ❌         | Sometimes     |
+| `series`    | ❌         | Sometimes     |
+
+## 🔗 Additional Resources
+
+The modified `.bib` file is not guaranteed to be well formatted. Use:
+
+- [**BibTex Tidy**](https://flamingtempura.github.io/bibtex-tidy/) for final formatting
+- VS Code's LaTeX Workshop extension

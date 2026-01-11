@@ -2,3 +2,5 @@
 !templates/*
 *.txt
 *.bak
+*.yaml
+!missing_templates.example.yaml
