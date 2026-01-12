@@ -229,6 +229,7 @@ PROCEEDINGS_TEMPLATES = {
         "issn": '2374-3468',
         "address": 'Washington, DC, USA',
         "publisher": 'AAAI Press',
+        "month": 'April',
     },
 
     ("Proceedings of the Eighteenth ACM International Conference on Web Search and Data Mining", "2025"): {
@@ -334,7 +335,7 @@ PROCEEDINGS_TEMPLATES = {
         "isbn": '978-1-57735-887-9',
         "address": 'Washington, DC, USA',
         "publisher": 'AAAI Press',
-        "month": 'February',
+        "month": 'March',
     },
 
     ("Proceedings of the Thirty-Third International Joint Conference on Artificial Intelligence, {IJCAI-24}", "2024"): {
@@ -542,9 +543,9 @@ PROCEEDINGS_TEMPLATES = {
     },
 
     ("Proceedings of the AAAI Conference on Artificial Intelligence", "2021"): {
-        "venue": 'Stockholmsmässan, Stockholm Sweden',
+        "venue": 'Stockholmsmässan, Stockholm, Sweden',
         "publisher": 'AAAI Press',
-        "month": 'February',
+        "month": 'May',
         "isbn": '978-1-57735-866-4',
         "issn": '2374-3468',
         "series": 'Proceedings of Machine Learning Research',
