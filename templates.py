@@ -513,7 +513,6 @@ PROCEEDINGS_TEMPLATES = {
     },
 
     ("Advances in Neural Information Processing Systems", "2021"): {
-        "venue": 'Online',
         "editor": 'M. Ranzato and A. Beygelzimer and Y. Dauphin and P.S. Liang and J. Wortman Vaughan',
         "isbn": '978-1-7138-4539-3',
         "address": 'Red Hook, NY, USA',
