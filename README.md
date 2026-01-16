@@ -135,6 +135,7 @@ bibcc/
 ├── titlecases.py         # Title case utilities
 └── utils/
     ├── missingfinder.py  # Find PDFs missing from library
+    ├── pdfrenamer.py     # Batch rename PDFs to match bib keys
     └── titleretriever.py # Retrieve titles from bib keys
 ```
 
@@ -159,6 +160,24 @@ python utils/missingfinder.py input.bib papers.txt -o missing_pdfs.txt
 ### Retrieve titles — `utils/titleretriever.py`
 
 Retrieve paper titles from bib keys for verification or search.
+
+### Batch rename PDFs — `utils/pdfrenamer.py`
+
+Rename downloaded PDFs to match bib keys based on temporal download order:
+
+```bash
+# Preview renames (no changes)
+python utils/pdfrenamer.py missing_pdfs.txt ~/Downloads/papers --dry-run
+
+# Apply renames
+python utils/pdfrenamer.py missing_pdfs.txt ~/Downloads/papers
+```
+
+- `report`: Path to the missing PDFs report (from `missingfinder.py`)
+- `pdf_folder`: Folder containing downloaded PDFs
+- `--dry-run`: Preview renames without applying
+
+**Workflow**: Download PDFs in the same order as listed in the report, then run the renamer to batch rename them to `Key_Author_Venue.pdf` format.
 
 ## 🧾 Template Types
 
