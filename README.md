@@ -132,8 +132,33 @@ bibcc/
 ├── checker.py            # Quality checking tool
 ├── yaml2templates.py     # YAML → templates converter
 ├── templates.py          # Templates (journals + proceedings)
-└── titlecases.py         # Title case utilities
+├── titlecases.py         # Title case utilities
+└── utils/
+    ├── missingfinder.py  # Find PDFs missing from library
+    └── titleretriever.py # Retrieve titles from bib keys
 ```
+
+## 🛠️ Utilities
+
+### Find missing PDFs — `utils/missingfinder.py`
+
+Compare bib entries with your PDF library to find papers you need to download:
+
+```bash
+# Basic usage
+python utils/missingfinder.py input.bib papers.txt
+
+# Specify output file
+python utils/missingfinder.py input.bib papers.txt -o missing_pdfs.txt
+```
+
+- `bib_file`: Path to your .bib file
+- `papers_file`: Directory listing of your PDF library (e.g., output of `ls` or `dir`)
+- `-o, --output`: Custom output path (default: `<bib_file>.missing_pdfs.txt`)
+
+### Retrieve titles — `utils/titleretriever.py`
+
+Retrieve paper titles from bib keys for verification or search.
 
 ## 🧾 Template Types
 
@@ -187,5 +212,5 @@ The modified `.bib` file is not guaranteed to be well formatted. Use:
 
 ## 📋 TODO
 
-- Add NER to `checker.py` for advacned brackets quotation need detection for names over static vocab.
-- Improve the robustness of title case formatting.
+- [ ] Add NER to `checker.py` for advacned brackets quotation need detection for names over static vocab.
+- [ ] Improve the robustness of title case formatting.
