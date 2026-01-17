@@ -1,11 +1,20 @@
 import argparse
 import re
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Set, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import bibtexparser
 
+from logging_utils import Logger, get_repo_dir
 from titlecases import DEFAULT_STOPWORDS, check_title_case, get_style
+
+
+def _write_report(path: Path, header: str, rows: List[str]) -> None:
+    """Write a simple report file with header and rows."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = [header]
+    content.extend(rows if rows else ["(none)"])
+    path.write_text("\n".join(content) + "\n", encoding="utf-8")
 
 
 # ---------- Bib file checking ----------
@@ -84,29 +93,32 @@ def parse_terms(raw: str) -> List[str]:
 
 
 def check_missing_fields(
-    input_path: str, required_fields: Sequence[str], target_types: Sequence[str]
-) -> None:
+    input_path: str,
+    required_fields: Sequence[str],
+    target_types: Sequence[str],
+    log: Optional[Callable[[str], None]] = None,
+) -> List[Tuple[str, str, str, List[str]]]:
+    """Check for missing fields and return the results."""
+    log = log or print
     required_fields = [f.strip() for f in required_fields if f.strip()]
     if not required_fields:
-        print("ℹ️  No required fields specified, skipping missing-field check.")
-        return
+        log("ℹ️  No required fields specified, skipping missing-field check.")
+        return []
 
-    print(
-        f"🔍 Scanning {input_path} for missing fields: {', '.join(required_fields)}\n"
-    )
+    log(f"🔍 Scanning {input_path} for missing fields: {', '.join(required_fields)}\n")
 
     try:
         with open(input_path, "r", encoding="utf-8") as f:
             parser = bibtexparser.bparser.BibTexParser(common_strings=True)
             bib_db = bibtexparser.load(f, parser=parser)
     except FileNotFoundError:
-        print(f"❌ Error: File '{input_path}' not found.")
-        return
+        log(f"❌ Error: File '{input_path}' not found.")
+        return []
 
     missing_rows: List[Tuple[str, str, str, List[str]]] = []
 
-    print(f"{'ID':<40} | {'Type':<15} | {'Year':<6} | Missing")
-    print("-" * 95)
+    log(f"{'ID':<40} | {'Type':<15} | {'Year':<6} | Missing")
+    log("-" * 95)
 
     for entry in bib_db.entries:
         entry_type = entry.get("ENTRYTYPE", "").lower()
@@ -123,45 +135,50 @@ def check_missing_fields(
 
     for row in missing_rows:
         rid, rtype, ryear, rmiss = row
-        print(f"{rid:<40} | {rtype:<15} | {ryear:<6} | {', '.join(rmiss)}")
+        log(f"{rid:<40} | {rtype:<15} | {ryear:<6} | {', '.join(rmiss)}")
 
-    print("-" * 95)
+    log("-" * 95)
     if not missing_rows:
-        print("✅ Perfect! All target entries contain the required fields.")
+        log("✅ Perfect! All target entries contain the required fields.")
     else:
         field_counts = {f: 0 for f in required_fields}
         for _, _, _, miss in missing_rows:
             for f in miss:
                 field_counts[f] += 1
         summary = "; ".join([f"{k}: {v}" for k, v in field_counts.items()])
-        print(
+        log(
             f"⚠️  Found {len(missing_rows)} entries missing fields. Breakdown -> {summary}"
         )
+
+    return missing_rows
 
 
 def check_smart_protection(
     input_path: str,
     extra_vocab: Iterable[str],
     use_default_vocab: bool = True,
-) -> None:
-    print(f"🧠 Smart-Scanning {input_path} for unprotected terms...\n")
+    log: Optional[Callable[[str], None]] = None,
+) -> List[Tuple[str, str, str]]:
+    """Check for unprotected terms and return the results."""
+    log = log or print
+    log(f"🧠 Smart-Scanning {input_path} for unprotected terms...\n")
 
     try:
         with open(input_path, "r", encoding="utf-8") as f:
             parser = bibtexparser.bparser.BibTexParser(common_strings=True)
             bib_db = bibtexparser.load(f, parser=parser)
     except FileNotFoundError:
-        print(f"❌ Error: File '{input_path}' not found.")
-        return
+        log(f"❌ Error: File '{input_path}' not found.")
+        return []
 
-    issues_found = 0
+    protection_rows: List[Tuple[str, str, str]] = []  # (entry_id, word, reason)
 
     regex_mixed = r"\b(?:[a-z]+[A-Z][a-zA-Z]*)|(?:[A-Z][a-z]*[A-Z][a-zA-Z]*)\b"
     regex_allcaps = r"\b[A-Z]{2,}\b"
     regex_numeric = r"\b[A-Za-z]*\d+[A-Za-z0-9\-]*\b"
 
-    print(f"{'ID':<30} | {'Suspicious Word':<20} | {'Reason'}")
-    print("-" * 75)
+    log(f"{'ID':<30} | {'Suspicious Word':<20} | {'Reason'}")
+    log("-" * 75)
 
     vocab_terms = set(DEFAULT_VOCAB) if use_default_vocab else set()
     vocab_terms.update([t.lower() for t in extra_vocab])
@@ -205,12 +222,14 @@ def check_smart_protection(
                 unique_issues[word] = reason
 
         for word, reason in unique_issues.items():
-            print(f"{entry['ID']:<30} | {word:<20} | {reason}")
-            issues_found += 1
+            log(f"{entry['ID']:<30} | {word:<20} | {reason}")
+            protection_rows.append((entry["ID"], word, reason))
 
-    print("-" * 75)
-    if issues_found > 0:
-        print(f"⚠️  Found {issues_found} terms to protect.")
+    log("-" * 75)
+    if protection_rows:
+        log(f"⚠️  Found {len(protection_rows)} terms to protect.")
+
+    return protection_rows
 
 
 # ------------- Template checking ----------
@@ -223,6 +242,7 @@ def check_template_fields(
     templates_path: Path,
     journal_fields: Sequence[str],
     proceedings_fields: Sequence[str],
+    log: Optional[Callable[[str], None]] = None,
 ) -> None:
     """
     Check templates for missing fields.
@@ -230,19 +250,20 @@ def check_template_fields(
     This helps maintain consistency across templates by identifying
     which templates are missing certain expected fields.
     """
+    log = log or print
     import importlib.util
 
     # Load templates module
     spec = importlib.util.spec_from_file_location("templates", templates_path)
     if spec is None or spec.loader is None:
-        print(f"❌ Error: Cannot load templates from {templates_path}")
+        log(f"❌ Error: Cannot load templates from {templates_path}")
         return
 
     mod = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(mod)
     except Exception as e:
-        print(f"❌ Error loading templates: {e}")
+        log(f"❌ Error loading templates: {e}")
         return
 
     journal_templates: Dict[str, Dict] = getattr(mod, "JOURNAL_TEMPLATES", {})
@@ -250,38 +271,38 @@ def check_template_fields(
         mod, "PROCEEDINGS_TEMPLATES", {}
     )
 
-    print(f"🔍 Checking templates in {templates_path}")
-    print(f"   Journal fields to check: {', '.join(journal_fields)}")
-    print(f"   Proceedings fields to check: {', '.join(proceedings_fields)}")
-    print()
+    log(f"🔍 Checking templates in {templates_path}")
+    log(f"   Journal fields to check: {', '.join(journal_fields)}")
+    log(f"   Proceedings fields to check: {', '.join(proceedings_fields)}")
+    log("")
 
     # Check journals
     journal_issues = []
     if journal_fields:
-        print(f"{'Journal Name':<60} | Missing Fields")
-        print("-" * 90)
+        log(f"{'Journal Name':<60} | Missing Fields")
+        log("-" * 90)
 
         for name, fields in sorted(journal_templates.items()):
             missing = [f for f in journal_fields if f not in fields or not fields[f]]
             if missing:
                 journal_issues.append((name, missing))
-                print(f"{name[:60]:<60} | {', '.join(missing)}")
+                log(f"{name[:60]:<60} | {', '.join(missing)}")
 
-        print("-" * 90)
+        log("-" * 90)
         if journal_issues:
-            print(
+            log(
                 f"⚠️  {len(journal_issues)}/{len(journal_templates)} journals have missing fields"
             )
         else:
-            print(f"✅ All {len(journal_templates)} journals have required fields")
+            log(f"✅ All {len(journal_templates)} journals have required fields")
 
-    print()
+    log("")
 
     # Check proceedings
     proceedings_issues = []
     if proceedings_fields:
-        print(f"{'Proceedings (Venue, Year)':<70} | Missing Fields")
-        print("-" * 100)
+        log(f"{'Proceedings (Venue, Year)':<70} | Missing Fields")
+        log("-" * 100)
 
         # Sort by year descending
         sorted_procs = sorted(
@@ -296,40 +317,38 @@ def check_template_fields(
             if missing:
                 proceedings_issues.append(((venue, year), missing))
                 display = f"({venue[:50]}, {year})"
-                print(f"{display:<70} | {', '.join(missing)}")
+                log(f"{display:<70} | {', '.join(missing)}")
 
-        print("-" * 100)
+        log("-" * 100)
         if proceedings_issues:
-            print(
+            log(
                 f"⚠️  {len(proceedings_issues)}/{len(proceedings_templates)} proceedings have missing fields"
             )
         else:
-            print(
-                f"✅ All {len(proceedings_templates)} proceedings have required fields"
-            )
+            log(f"✅ All {len(proceedings_templates)} proceedings have required fields")
 
     # Summary by field
-    print("\n📊 Summary by field:")
+    log("\n📊 Summary by field:")
 
     if journal_fields:
-        print("\n  Journals:")
+        log("\n  Journals:")
         for field in journal_fields:
             count = sum(
                 1
                 for _, fields in journal_templates.items()
                 if field not in fields or not fields[field]
             )
-            print(f"    {field}: {count} missing")
+            log(f"    {field}: {count} missing")
 
     if proceedings_fields:
-        print("\n  Proceedings:")
+        log("\n  Proceedings:")
         for field in proceedings_fields:
             count = sum(
                 1
                 for _, fields in proceedings_templates.items()
                 if field not in fields or not fields[field]
             )
-            print(f"    {field}: {count} missing")
+            log(f"    {field}: {count} missing")
 
 
 if __name__ == "__main__":
@@ -425,48 +444,102 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # All outputs go to repo directory
+    repo_dir = get_repo_dir()
+    base_name = Path(args.input).name if args.input else "templates.py"
+
     # Template checking mode
     if args.check_templates:
-        journal_fields = parse_list_arg(args.journal_fields)
-        proceedings_fields = parse_list_arg(args.proceedings_fields)
-        check_template_fields(
-            Path(args.templates_path),
-            journal_fields,
-            proceedings_fields,
-        )
+        # Create logger for template checking
+        with Logger("checker", input_file=args.templates_path) as logger:
+            journal_fields = parse_list_arg(args.journal_fields)
+            proceedings_fields = parse_list_arg(args.proceedings_fields)
+            check_template_fields(
+                Path(args.templates_path),
+                journal_fields,
+                proceedings_fields,
+                log=logger.log,
+            )
         exit(0)
 
-    required_fields = parse_list_arg(args.fields)  # or DEFAULT_REQUIRED_FIELDS
-    entry_types = [
-        t.lower() for t in parse_list_arg(args.entry_types) or DEFAULT_ENTRY_TYPES
-    ]
+    # Create logger for bib file checking
+    with Logger("checker", input_file=args.input) as logger:
+        required_fields = parse_list_arg(args.fields)  # or DEFAULT_REQUIRED_FIELDS
+        entry_types = [
+            t.lower() for t in parse_list_arg(args.entry_types) or DEFAULT_ENTRY_TYPES
+        ]
 
-    # Missing fields
-    if required_fields:
-        check_missing_fields(args.input, required_fields, entry_types)
+        # Missing fields
+        missing_rows = []
+        if required_fields:
+            missing_rows = check_missing_fields(
+                args.input, required_fields, entry_types, log=logger.log
+            )
+            # Write missing fields report
+            if missing_rows:
+                report_path = repo_dir / f"{base_name}.missing_fields.txt"
+                rows = [
+                    f"{rid}\t{rtype}\t{ryear}\t{', '.join(rmiss)}"
+                    for rid, rtype, ryear, rmiss in missing_rows
+                ]
+                _write_report(
+                    report_path,
+                    "missing fields: entry_id\ttype\tyear\tfields",
+                    rows,
+                )
+                logger.log(f"\n📄 Missing fields report: {report_path}")
 
-    # Title case
-    if args.title_case or args.title_apply:
-        print("\n")
-        style = get_style(args.title_style)
-        stopwords = set(style.stopwords)
-        stopwords.update([s.lower() for s in parse_list_arg(args.extra_stopwords)])
-        check_title_case(
-            args.input,
-            stopwords,
-            style.name,
-            apply=args.title_apply,
-        )
+        # Title case
+        titlecase_rows = []
+        if args.title_case or args.title_apply:
+            logger.log("\n")
+            style = get_style(args.title_style)
+            stopwords = set(style.stopwords)
+            stopwords.update([s.lower() for s in parse_list_arg(args.extra_stopwords)])
+            titlecase_rows = check_title_case(
+                args.input,
+                stopwords,
+                style.name,
+                apply=args.title_apply,
+                log=logger.log,
+            )
+            # Write title case report
+            if titlecase_rows and not args.title_apply:
+                report_path = repo_dir / f"{base_name}.title_case.txt"
+                rows = [
+                    f"{eid}\t{current}\t{suggested}"
+                    for eid, current, suggested in titlecase_rows
+                ]
+                _write_report(
+                    report_path,
+                    "title case: entry_id\tcurrent\tsuggested",
+                    rows,
+                )
+                logger.log(f"\n📄 Title case report: {report_path}")
 
-    # Smart protection
-    if args.quote:
-        print("\n")
-        extra_vocab: List[str] = []
-        if args.quote_vocab_file:
-            extra_vocab.extend(load_vocab_file(Path(args.quote_vocab_file)))
-        extra_vocab.extend(parse_terms(args.quote_terms))
-        check_smart_protection(
-            args.input,
-            extra_vocab,
-            use_default_vocab=not args.quote_no_default,
-        )
+        # Smart protection
+        protection_rows = []
+        if args.quote:
+            logger.log("\n")
+            extra_vocab: List[str] = []
+            if args.quote_vocab_file:
+                extra_vocab.extend(load_vocab_file(Path(args.quote_vocab_file)))
+            extra_vocab.extend(parse_terms(args.quote_terms))
+            protection_rows = check_smart_protection(
+                args.input,
+                extra_vocab,
+                use_default_vocab=not args.quote_no_default,
+                log=logger.log,
+            )
+            # Write smart protection report
+            if protection_rows:
+                report_path = repo_dir / f"{base_name}.smart_protection.txt"
+                rows = [
+                    f"{eid}\t{word}\t{reason}" for eid, word, reason in protection_rows
+                ]
+                _write_report(
+                    report_path,
+                    "smart protection: entry_id\tword\treason",
+                    rows,
+                )
+                logger.log(f"\n📄 Smart protection report: {report_path}")

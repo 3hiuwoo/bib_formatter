@@ -2,7 +2,7 @@ import argparse
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import bibtexparser
 
@@ -217,7 +217,10 @@ def check_title_case(
     stopwords: Optional[Set[str]] = None,
     style_name: str = "apa",
     apply: bool = False,
-) -> None:
+    log: Optional[Callable[[str], None]] = None,
+) -> List[Tuple[str, str, str]]:
+    """Check title case and return list of (entry_id, current_title, suggested_title)."""
+    log = log or print
     style = get_style(style_name)
     stopwords = stopwords or set(style.stopwords)
 
@@ -226,13 +229,13 @@ def check_title_case(
             parser = bibtexparser.bparser.BibTexParser(common_strings=True)
             bib_db = bibtexparser.load(f, parser=parser)
     except FileNotFoundError:
-        print(f"❌ Error: File '{input_path}' not found.")
-        return
+        log(f"❌ Error: File '{input_path}' not found.")
+        return []
 
     if not apply:
-        print(f"📝 Checking Title Case for {input_path}\n")
-        print(f"{'ID':<40} | {'Issue':<40} | Suggestion")
-        print("-" * 95)
+        log(f"📝 Checking Title Case for {input_path}\n")
+        log(f"{'ID':<40} | {'Issue':<40} | Suggestion")
+        log("-" * 95)
 
     issues = 0
     changed: List[Tuple[str, str, str]] = []  # (ID, old, new)
@@ -253,7 +256,8 @@ def check_title_case(
                 entry["title"] = suggestion
                 changed.append((entry.get("ID", ""), title, suggestion))
             else:
-                print(f"{entry.get('ID', ''):<40} | {title:<40} | {suggestion}")
+                log(f"{entry.get('ID', ''):<40} | {title:<40} | {suggestion}")
+                changed.append((entry.get("ID", ""), title, suggestion))
 
     if apply:
         # Apply changes in-place while preserving comments and original formatting as much as possible
@@ -288,16 +292,18 @@ def check_title_case(
         Path(input_path).write_text("".join(new_lines), encoding="utf-8")
 
         if replacements == 0:
-            print("✅ No title-case updates needed; file left unchanged.")
+            log("✅ No title-case updates needed; file left unchanged.")
         else:
-            print(
+            log(
                 f"✏️  Applied title-case suggestions to {input_path} ({replacements} titles updated)."
             )
     else:
-        print("-" * 95)
+        log("-" * 95)
         if issues == 0:
-            print(
+            log(
                 "✅ All titles already appear to be in Title Case (with stopword handling)."
             )
         else:
-            print(f"⚠️  Found {issues} titles that could be normalized.")
+            log(f"⚠️  Found {issues} titles that could be normalized.")
+
+    return changed

@@ -133,10 +133,44 @@ bibcc/
 ├── yaml2templates.py     # YAML → templates converter
 ├── templates.py          # Templates (journals + proceedings)
 ├── titlecases.py         # Title case utilities
+├── logging_utils.py      # Unified logging utilities
+├── logs/                 # Execution logs (auto-generated)
+│   └── *.log
 └── utils/
     ├── missingfinder.py  # Find PDFs missing from library
     ├── pdfrenamer.py     # Batch rename PDFs to match bib keys
-    └── titleretriever.py # Retrieve titles from bib keys
+    └── titleretriever.py # Retrieve titles from external sources
+```
+
+## 📝 Unified Logging
+
+All tools now use a unified logging strategy that:
+
+1. **Automatically generates output files** - No need to manually specify `--output`
+2. **Logs to both stdout and file** - See output in terminal and have a permanent record
+3. **Report files in repo root** - Primary outputs (`.txt`, `.yaml`) are saved to repo directory
+4. **Log files in `logs/` folder** - Execution logs are organized in `logs/` subdirectory
+5. **Consistent naming convention** - Files are named `<input_file>.<tool_name>.<type>`
+
+### Output Files by Tool
+
+| Tool | Report Files (repo root) | Log Files (`logs/`) |
+| ------ | --------------- | --------------- |
+| `checker.py` | `.missing_fields.txt`, `.title_case.txt`, `.smart_protection.txt` | `.checker.log` |
+| `completer.py` | `.conflicts.txt`, `.missing_templates.txt`, `.missing_templates.yaml`, `.incomplete_entries.txt` | `.completer.log` |
+| `missingfinder.py` | `.missing_pdfs.txt`, `.extras_in_library.txt`, `.dups_in_library.txt` | `.missingfinder.log` |
+| `pdfrenamer.py` | — | `.pdfrenamer.log` |
+| `titleretriever.py` | `.title_report.txt` | `.titleretriever.log` |
+
+### Using logging_utils.py
+
+```python
+from logging_utils import Logger, get_repo_dir
+
+with Logger("my_tool", input_file="data.bib") as logger:
+    logger.log("Processing...")       # Goes to stdout and file
+    logger.log("Done!", prefix="✅")  # With prefix
+# Log file auto-saved to: logs/data.bib.my_tool.log
 ```
 
 ## 🛠️ Utilities
@@ -146,20 +180,35 @@ bibcc/
 Compare bib entries with your PDF library to find papers you need to download:
 
 ```bash
-# Basic usage
 python utils/missingfinder.py input.bib papers.txt
-
-# Specify output file
-python utils/missingfinder.py input.bib papers.txt -o missing_pdfs.txt
 ```
 
 - `bib_file`: Path to your .bib file
 - `papers_file`: Directory listing of your PDF library (e.g., output of `ls` or `dir`)
-- `-o, --output`: Custom output path (default: `<bib_file>.missing_pdfs.txt`)
+
+**Output files** (automatically generated):
+- `<bib_file>.missing_pdfs.txt` - Bib entries without PDFs
+- `<bib_file>.extras_in_library.txt` - PDFs not in bib
+- `<bib_file>.dups_in_library.txt` - Duplicate PDF groups
+- `<bib_file>.missingfinder.log` - Execution log
 
 ### Retrieve titles — `utils/titleretriever.py`
 
-Retrieve paper titles from bib keys for verification or search.
+Check paper titles against external sources (CrossRef, DBLP, Semantic Scholar, arXiv):
+
+```bash
+python utils/titleretriever.py input.bib
+```
+
+**Output files** (automatically generated):
+- `<bib_file>.title_report.txt` - Title verification report
+- `<bib_file>.titleretriever.log` - Execution log
+
+**Options**:
+- `--delay 0.5`: Delay between API requests (default: 0.5s)
+- `--quiet`: Suppress progress output
+- `--retry-errors <report>`: Re-check only failed entries from previous report
+- `--ids ID1,ID2`: Check specific entries only
 
 ### Batch rename PDFs — `utils/pdfrenamer.py`
 
@@ -177,7 +226,7 @@ python utils/pdfrenamer.py missing_pdfs.txt ~/Downloads/papers
 - `pdf_folder`: Folder containing downloaded PDFs
 - `--dry-run`: Preview renames without applying
 
-**Workflow**: Download PDFs in the same order as listed in the report, then run the renamer to batch rename them to `Key_Author_Venue.pdf` format.
+**Workflow**: Download PDFs in the same order as listed in the report, then run the renamer to batch rename them to match bib keys.
 
 ## 🧾 Template Types
 

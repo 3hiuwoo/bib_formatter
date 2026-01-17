@@ -16,10 +16,11 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import bibtexparser
 
+from logging_utils import Logger, get_repo_dir
 from templates import JOURNAL_TEMPLATES, PROCEEDINGS_TEMPLATES
 
 
@@ -143,10 +144,12 @@ def main(
     output_path: str,
     dry_run: bool = False,
     log_dir: Path | None = None,
+    log: Optional[Callable[[str], None]] = None,
 ):
     """Main entry point for the completer."""
-    print(f"Reading {input_path}...")
-    print("📦 Using template structure (journals + proceedings)")
+    log = log or print
+    log(f"Reading {input_path}...")
+    log("📦 Using template structure (journals + proceedings)")
 
     # --- PASS 1: THE BRAIN ---
     # Parse to understand the data
@@ -207,15 +210,16 @@ def main(
         if conflicts_to_add:
             conflicts[entry_id] = conflicts_to_add
 
-    print(f"  Identified {len(patches)} entries to patch.")
+    log(f"  Identified {len(patches)} entries to patch.")
 
-    # Prepare log paths
-    log_dir = log_dir or Path(".")
-    log_dir.mkdir(parents=True, exist_ok=True)
+    # Prepare log paths - always output to repo directory
+    repo_dir = get_repo_dir()
+    output_dir = Path(log_dir) if log_dir else repo_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
     base = Path(input_path).name
-    conflict_log = log_dir / f"{base}.conflicts.txt"
-    missing_txt_log = log_dir / f"{base}.missing_templates.txt"
-    missing_yaml_log = log_dir / f"{base}.missing_templates.yaml"
+    conflict_log = output_dir / f"{base}.conflicts.txt"
+    missing_txt_log = output_dir / f"{base}.missing_templates.txt"
+    missing_yaml_log = output_dir / f"{base}.missing_templates.yaml"
 
     # Collect log rows
     conflict_rows: List[str] = []
@@ -238,45 +242,45 @@ def main(
     # Dry-run summary
     if dry_run:
         if patches:
-            print("\n🧪 Dry-run additions:")
+            log("\n🧪 Dry-run additions:")
             for eid, fields in patches.items():
-                print(f"Entry ID: {eid}")
+                log(f"Entry ID: {eid}")
                 for k, v in fields.items():
-                    print(f"    add {k} = {{{v}}}")
+                    log(f"    add {k} = {{{v}}}")
         else:
-            print("\n🧪 Dry-run: no additions needed.")
+            log("\n🧪 Dry-run: no additions needed.")
 
         if conflicts:
-            print(
+            log(
                 "\n⚠️  Conflicts (existing value differs from template, not overwritten):"
             )
             for eid, conflicts_fields in conflicts.items():
-                print(f"Entry ID: {eid}")
+                log(f"Entry ID: {eid}")
                 for k, existing_val, tmpl_val in conflicts_fields:
-                    print(
+                    log(
                         f"  field '{k}': existing='{existing_val}', template='{tmpl_val}'"
                     )
         else:
-            print("\n✅ No conflicts detected.")
+            log("\n✅ No conflicts detected.")
 
         if incomplete_entries:
-            print(
+            log(
                 "\n📭 Incomplete entries (missing year or venue, e.g., arxiv/misc) - skipped:"
             )
             for entry_id, venue, year in incomplete_entries:
-                print(
+                log(
                     f"  🔸 {entry_id}: venue='{venue or '(empty)'}' year='{year or '(empty)'}'"
                 )
 
         if missing_templates:
-            print(
+            log(
                 "\nℹ️  Missing (venue, year) combinations not in templates (deduplicated):"
             )
             for venue_raw, year, entry_type in missing_templates.values():
                 type_icon = "📰" if entry_type == "journal" else "📋"
-                print(f"  {type_icon} [{entry_type}] venue='{venue_raw}' year='{year}'")
+                log(f"  {type_icon} [{entry_type}] venue='{venue_raw}' year='{year}'")
         else:
-            print("\n✅ All complete entries matched existing templates.")
+            log("\n✅ All complete entries matched existing templates.")
 
         # Write logs
         _write_log(
@@ -291,7 +295,7 @@ def main(
         )
 
         # Write incomplete entries log
-        incomplete_log = log_dir / f"{base}.incomplete_entries.txt"
+        incomplete_log = output_dir / f"{base}.incomplete_entries.txt"
         _write_log(
             incomplete_log,
             "incomplete entries (missing year or venue): entry_id\tvenue\tyear",
@@ -302,14 +306,14 @@ def main(
         # Only include entries with both venue and year (not incomplete ones)
         if missing_templates:
             _write_yaml_missing_templates(missing_yaml_log, missing_templates)
-            print(f"\n📝 YAML template file created: {missing_yaml_log}")
-            print(
+            log(f"\n📝 YAML template file created: {missing_yaml_log}")
+            log(
                 "   Fill in the fields and run: python yaml2templates.py {} --update".format(
                     missing_yaml_log
                 )
             )
 
-        print(f"\nLogs saved: {conflict_log}, {missing_txt_log}, {incomplete_log}")
+        log(f"\nLogs saved: {conflict_log}, {missing_txt_log}, {incomplete_log}")
         return
 
     # --- PASS 2: THE SURGEON ---
@@ -334,7 +338,7 @@ def main(
 
                     del patches[current_id]
 
-    print(f"✅ Done! Saved to {output_path} (Comments preserved)")
+    log(f"✅ Done! Saved to {output_path} (Comments preserved)")
 
 
 if __name__ == "__main__":
@@ -359,9 +363,11 @@ if __name__ == "__main__":
     dry_run = not bool(args.output)
     log_dir = Path(args.log_dir) if args.log_dir else None
 
-    main(
-        args.input,
-        args.output or args.input,
-        dry_run=dry_run,
-        log_dir=log_dir,
-    )
+    with Logger("completer", input_file=args.input, log_dir=log_dir) as logger:
+        main(
+            args.input,
+            args.output or args.input,
+            dry_run=dry_run,
+            log_dir=log_dir,
+            log=logger.log,
+        )

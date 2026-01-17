@@ -4,3 +4,4 @@
 *.bak
 *.yaml
 !missing_templates.example.yaml
+logs/

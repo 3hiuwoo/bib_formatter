@@ -11,13 +11,18 @@ Source strategy:
   3. Semantic Scholar API (search by title, as backup)
 
 Usage:
-    python title_checker.py <bib_file> [--output report.txt] [--delay 0.5]
-    python title_checker.py <bib_file> --retry-errors report.txt  # Re-check only failed entries
-    python title_checker.py <bib_file> --ids ID1,ID2,ID3          # Check specific entries
+    python titleretriever.py <bib_file>
+    python titleretriever.py <bib_file> --retry-errors report.txt  # Re-check only failed entries
+    python titleretriever.py <bib_file> --ids ID1,ID2,ID3          # Check specific entries
+
+Output:
+    - Automatically generates <bib_file>.titleretriever.log
+    - Report saved to <bib_file>.title_report.txt
 """
 
 import argparse
 import re
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -25,10 +30,14 @@ import urllib.error
 import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
 import bibtexparser
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from logging_utils import Logger, get_repo_dir
 
 
 @dataclass
@@ -628,6 +637,7 @@ def check_titles(
     delay: float = 0.5,
     verbose: bool = True,
     filter_ids: Optional[List[str]] = None,
+    log: Optional[Callable[[str], None]] = None,
 ) -> List[Dict]:
     """
     Check all titles in a bib file against external sources.
@@ -636,7 +646,10 @@ def check_titles(
 
     Args:
         filter_ids: If provided, only check entries with these IDs
+        log: Optional logging function (default: print)
     """
+    log = log or print
+
     # Load bib file
     with open(bib_path, "r", encoding="utf-8") as f:
         parser = bibtexparser.bparser.BibTexParser(common_strings=True)
@@ -646,20 +659,18 @@ def check_titles(
     if filter_ids:
         filter_set = set(filter_ids)
         entries_to_check = [e for e in bib_db.entries if e.get("ID") in filter_set]
-        print(
-            f"🔍 Re-checking {len(entries_to_check)} specific entries from {bib_path}"
-        )
+        log(f"🔍 Re-checking {len(entries_to_check)} specific entries from {bib_path}")
         if len(entries_to_check) < len(filter_ids):
             found_ids = {e.get("ID") for e in entries_to_check}
             missing = filter_set - found_ids
-            print(
+            log(
                 f"⚠️  Warning: {len(missing)} IDs not found in bib file: {', '.join(list(missing)[:5])}..."
             )
     else:
         entries_to_check = bib_db.entries
-        print(f"🔍 Checking {len(entries_to_check)} entries in {bib_path}")
+        log(f"🔍 Checking {len(entries_to_check)} entries in {bib_path}")
 
-    print("\n" + "=" * 80)
+    log("\n" + "=" * 80)
 
     results = []
     total = len(entries_to_check)
@@ -673,7 +684,7 @@ def check_titles(
 
         if verbose:
             status = f"[{i}/{total}] Checking: {entry_id[:40]}"
-            print(f"\r{status:<60}", end="", flush=True)
+            log(f"\r{status:<60}")
 
         matches, source_statuses = find_original_title(entry, delay)
 
@@ -734,7 +745,7 @@ def check_titles(
                 break
 
     if verbose:
-        print("\r" + " " * 80 + "\r", end="")  # Clear progress line
+        log("")  # Clear progress line
 
     # Separate results
     not_found = [r for r in results if r.get("not_found")]
@@ -749,61 +760,61 @@ def check_titles(
     no_match = [r for r in not_found if r not in with_errors]
 
     # Print report
-    print(f"\n📋 TITLE CHECK REPORT")
-    print("=" * 80)
-    print(f"Total entries checked: {total}")
-    print(f"Entries with case differences: {len(case_diffs)}")
-    print(f"Entries with lookup errors (network/API): {len(with_errors)}")
-    print(f"Entries with no match found: {len(no_match)}")
-    print("=" * 80 + "\n")
+    log(f"\n📋 TITLE CHECK REPORT")
+    log("=" * 80)
+    log(f"Total entries checked: {total}")
+    log(f"Entries with case differences: {len(case_diffs)}")
+    log(f"Entries with lookup errors (network/API): {len(with_errors)}")
+    log(f"Entries with no match found: {len(no_match)}")
+    log("=" * 80 + "\n")
 
     if case_diffs:
-        print("📝 CASE DIFFERENCES FOUND:")
-        print("-" * 80)
+        log("📝 CASE DIFFERENCES FOUND:")
+        log("-" * 80)
         for r in case_diffs:
-            print(f"📄 {r['id']}")
-            print(f"  Source: {r['source']}")
-            print(f"  Current:  {r['current_title']}")
-            print(f"  Original: {r['original_title']}")
+            log(f"📄 {r['id']}")
+            log(f"  Source: {r['source']}")
+            log(f"  Current:  {r['current_title']}")
+            log(f"  Original: {r['original_title']}")
             diff = highlight_case_diff(r["current_title"], r["original_title"])
             if diff:
-                print(diff)
+                log(diff)
             if r["url"]:
-                print(f"  URL: {r['url']}")
-            print()
+                log(f"  URL: {r['url']}")
+            log("")
 
     if not_found:
-        print("❓ NOT FOUND IN ANY SOURCE (need manual check):")
-        print("-" * 80)
+        log("❓ NOT FOUND IN ANY SOURCE (need manual check):")
+        log("-" * 80)
 
         # Show entries with errors first
         if with_errors:
-            print("\n⚠️  LOOKUP ERRORS (network/API failures):")
+            log("\n⚠️  LOOKUP ERRORS (network/API failures):")
             for r in with_errors:
-                print(f"📄 {r['id']}")
-                print(f"  Title: {r['current_title']}")
+                log(f"📄 {r['id']}")
+                log(f"  Title: {r['current_title']}")
                 for ss in r.get("source_statuses", []):
                     if ss.status == "error":
-                        print(f"  ❌ {ss.source}: {ss.error}")
+                        log(f"  ❌ {ss.source}: {ss.error}")
                     elif ss.status == "no_match":
-                        print(f"  ✓ {ss.source}: searched, no match")
-                print()
+                        log(f"  ✓ {ss.source}: searched, no match")
+                log("")
 
         # Show entries with no match (but no errors)
         if no_match:
-            print("\n🔍 NO MATCH FOUND (searched successfully but not found):")
+            log("\n🔍 NO MATCH FOUND (searched successfully but not found):")
             for r in no_match:
-                print(f"📄 {r['id']}")
-                print(f"  Title: {r['current_title']}")
+                log(f"📄 {r['id']}")
+                log(f"  Title: {r['current_title']}")
                 sources = [ss.source for ss in r.get("source_statuses", [])]
                 if sources:
-                    print(f"  Searched: {', '.join(sources)}")
+                    log(f"  Searched: {', '.join(sources)}")
                 else:
-                    print(f"  Reason: {r.get('reason', 'Unknown')}")
-                print()
+                    log(f"  Reason: {r.get('reason', 'Unknown')}")
+                log("")
 
     if not case_diffs and not not_found:
-        print("✅ All titles verified - no issues found!")
+        log("✅ All titles verified - no issues found!")
 
     # Write to file if requested
     if output_path:
@@ -855,7 +866,7 @@ def check_titles(
                             f.write(f"Searched: {', '.join(sources)}\n")
                         f.write("\n")
 
-        print(f"📝 Report saved to: {output_path}")
+        log(f"📝 Report saved to: {output_path}")
 
     return results
 
@@ -865,12 +876,6 @@ def main():
         description="Check BibTeX titles against external sources (CrossRef, DBLP, Semantic Scholar, arXiv)"
     )
     parser.add_argument("input", help="Path to the input BibTeX (.bib) file")
-    parser.add_argument(
-        "--output",
-        "-o",
-        help="Path to save the report (optional)",
-        default=None,
-    )
     parser.add_argument(
         "--delay",
         "-d",
@@ -896,41 +901,52 @@ def main():
 
     args = parser.parse_args()
 
-    # Determine which entries to check
-    filter_ids = None
-    retry_report_path = None
+    # Auto-generate output path in repo directory
+    repo_dir = get_repo_dir()
+    input_path = Path(args.input)
+    base_name = input_path.name
+    output_path = repo_dir / f"{base_name}.title_report.txt"
 
-    if args.retry_errors:
-        filter_ids = parse_error_ids_from_report(args.retry_errors)
-        if not filter_ids:
-            print("No error entries found in the report file.")
-            return
-        print(f"📋 Found {len(filter_ids)} entries with errors to re-check")
-        retry_report_path = args.retry_errors  # Will merge back into this report
-    elif args.ids:
-        filter_ids = [id.strip() for id in args.ids.split(",")]
-        print(f"📋 Will check {len(filter_ids)} specified entries")
+    # Create unified logger
+    with Logger("titleretriever", input_file=args.input) as logger:
+        log = logger.log
 
-    # Run the check
-    results = check_titles(
-        args.input,
-        output_path=(
-            args.output if not retry_report_path else None
-        ),  # Don't write if retrying
-        delay=args.delay,
-        verbose=not args.quiet,
-        filter_ids=filter_ids,
-    )
+        # Determine which entries to check
+        filter_ids = None
+        retry_report_path = None
 
-    # If retrying, merge results back into original report
-    if retry_report_path and results is not None and filter_ids is not None:
-        merge_and_write_report(
-            retry_report_path,
-            results,
-            filter_ids,
+        if args.retry_errors:
+            filter_ids = parse_error_ids_from_report(args.retry_errors)
+            if not filter_ids:
+                log("No error entries found in the report file.")
+                return
+            log(f"📋 Found {len(filter_ids)} entries with errors to re-check")
+            retry_report_path = args.retry_errors  # Will merge back into this report
+        elif args.ids:
+            filter_ids = [id.strip() for id in args.ids.split(",")]
+            log(f"📋 Will check {len(filter_ids)} specified entries")
+
+        # Run the check
+        results = check_titles(
             args.input,
-            len(filter_ids),
+            output_path=(
+                str(output_path) if not retry_report_path else None
+            ),  # Don't write if retrying
+            delay=args.delay,
+            verbose=not args.quiet,
+            filter_ids=filter_ids,
+            log=log,
         )
+
+        # If retrying, merge results back into original report
+        if retry_report_path and results is not None and filter_ids is not None:
+            merge_and_write_report(
+                retry_report_path,
+                results,
+                filter_ids,
+                args.input,
+                len(filter_ids),
+            )
 
 
 if __name__ == "__main__":
