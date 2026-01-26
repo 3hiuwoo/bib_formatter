@@ -1,3 +1,25 @@
+"""
+Title Case Transformation for BibTeX Entries.
+
+This module provides APA-style title case transformation logic for BibTeX titles.
+It handles:
+- Stopword detection (articles, prepositions, conjunctions)
+- Hyphenated compound word capitalization
+- Brace-protected segment preservation
+- Subtitle capitalization after colons/em dashes
+- Acronym preservation (all-caps words)
+
+Usage:
+    from titlecases import suggest_title_case, check_title_case
+
+    # Get title case suggestion
+    suggested = suggest_title_case("a study on machine learning")
+    # -> "A Study on Machine Learning"
+
+    # Check and optionally apply to bib file
+    issues = check_title_case("input.bib", apply=True)
+"""
+
 import argparse
 import re
 from dataclasses import dataclass
@@ -9,6 +31,18 @@ import bibtexparser
 
 @dataclass
 class TitleCaseStyle:
+    """
+    Configuration for a title case style.
+
+    Attributes:
+        name: Style identifier (e.g., "apa")
+        stopwords: Words to keep lowercase unless at start of title/subtitle
+        min_length_capitalize: Minimum word length to always capitalize
+        capitalize_last_word: Whether to always capitalize the last word
+        hyphen_capitalize_all_parts: Whether to capitalize all parts of hyphenated words
+        subtitle_delimiters: Characters that introduce subtitles (capitalize next word)
+    """
+
     name: str
     stopwords: Set[str]
     min_length_capitalize: int = 4
@@ -63,6 +97,7 @@ STYLES: Dict[str, TitleCaseStyle] = {
 
 
 def get_style(name: Optional[str]) -> TitleCaseStyle:
+    """Get a title case style by name, defaulting to APA."""
     if not name:
         return STYLES["apa"]
     return STYLES.get(name.lower(), STYLES["apa"])
@@ -73,7 +108,7 @@ DEFAULT_STOPWORDS = APA_STOPWORDS
 
 
 def _split_tokens_preserve_space(text: str) -> List[str]:
-    # Split and preserve whitespace separators
+    """Split text into tokens while preserving whitespace as separate elements."""
     return re.split(r"(\s+)", text)
 
 
@@ -83,7 +118,7 @@ def _titlecase_hyphenated(
     stopwords: Set[str],
     style: TitleCaseStyle,
 ) -> str:
-    # Title-case each hyphen-separated segment individually
+    """Apply title case to a hyphenated word (e.g., 'self-report' -> 'Self-Report')."""
     parts = core.split("-")
     cased_parts = []
     for i, part in enumerate(parts):
@@ -109,6 +144,7 @@ def _titlecase_word(
     stopwords: Set[str],
     style: TitleCaseStyle,
 ) -> str:
+    """Apply title case rules to a single word, preserving punctuation and acronyms."""
     if not word:
         return word
 
@@ -146,6 +182,20 @@ def suggest_title_case(
     stopwords: Optional[Set[str]] = None,
     style_name: str = "apa",
 ) -> str:
+    """
+    Convert a title to title case following the specified style.
+
+    Preserves brace-protected segments (e.g., {BERT}) and handles
+    subtitle capitalization after colons or em dashes.
+
+    Args:
+        title: The input title string (may contain LaTeX braces)
+        stopwords: Custom stopwords to use (defaults to style's stopwords)
+        style_name: Title case style to apply (default: "apa")
+
+    Returns:
+        The title converted to proper title case
+    """
     style = get_style(style_name)
     stopwords = stopwords or style.stopwords
 

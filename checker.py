@@ -1,3 +1,26 @@
+"""
+BibTeX Quality Checker.
+
+This module provides quality checking for BibTeX files:
+- Missing field detection (e.g., month, publisher)
+- Title case validation with APA-style rules
+- Smart protection suggestions for technical terms and acronyms
+- Template completeness checking
+
+Usage:
+    # Check for missing fields
+    python checker.py input.bib --fields month,publisher
+
+    # Check title case
+    python checker.py input.bib --title-case
+
+    # Suggest brace protection for terms
+    python checker.py input.bib --quote --quote-terms Gaussian,BERT
+
+    # Check template completeness
+    python checker.py --check-templates
+"""
+
 import argparse
 import re
 from pathlib import Path
@@ -68,12 +91,14 @@ DEFAULT_VOCAB = {
 
 
 def parse_list_arg(raw: str) -> List[str]:
+    """Parse a comma-separated string into a list of stripped items."""
     if not raw:
         return []
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
 def load_vocab_file(path: Path) -> Set[str]:
+    """Load vocabulary terms from a newline-delimited file."""
     vocab: Set[str] = set()
     if not path.exists():
         print(f"⚠️  Vocab file '{path}' not found; skipping.")
@@ -87,6 +112,7 @@ def load_vocab_file(path: Path) -> Set[str]:
 
 
 def parse_terms(raw: str) -> List[str]:
+    """Parse a comma-separated string of terms into a list."""
     if not raw:
         return []
     return [t.strip() for t in raw.split(",") if t.strip()]

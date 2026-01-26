@@ -137,9 +137,10 @@ bibcc/
 ├── logs/                 # Execution logs (auto-generated)
 │   └── *.log
 └── utils/
-    ├── missingfinder.py  # Find PDFs missing from library
-    ├── pdfrenamer.py     # Batch rename PDFs to match bib keys
-    └── titleretriever.py # Retrieve titles from external sources
+    ├── citationimporter.py # Import citation counts from Google Scholar
+    ├── missingfinder.py    # Find PDFs missing from library
+    ├── pdfrenamer.py       # Batch rename PDFs to match bib keys
+    └── titleretriever.py   # Retrieve titles from external sources
 ```
 
 ## 📝 Unified Logging
@@ -158,6 +159,7 @@ All tools now use a unified logging strategy that:
 | ------ | --------------- | --------------- |
 | `checker.py` | `.missing_fields.txt`, `.title_case.txt`, `.smart_protection.txt` | `.checker.log` |
 | `completer.py` | `.conflicts.txt`, `.missing_templates.txt`, `.missing_templates.yaml`, `.incomplete_entries.txt` | `.completer.log` |
+| `citationimporter.py` | `.scholar_urls.txt` | `.citationimporter.log` |
 | `missingfinder.py` | `.missing_pdfs.txt`, `.extras_in_library.txt`, `.dups_in_library.txt` | `.missingfinder.log` |
 | `pdfrenamer.py` | — | `.pdfrenamer.log` |
 | `titleretriever.py` | `.title_report.txt` | `.titleretriever.log` |
@@ -175,6 +177,41 @@ with Logger("my_tool", input_file="data.bib") as logger:
 
 ## 🛠️ Utilities
 
+### Import citation counts — `utils/citationimporter.py`
+
+Manually import citation counts from Google Scholar with browser automation:
+
+```bash
+# Preview mode - show entries needing citations
+python utils/citationimporter.py input.bib
+
+# Interactive mode - open URLs one by one and prompt for citation count
+python utils/citationimporter.py input.bib --interactive
+
+# Batch mode - open URLs in browser tabs (5 at a time)
+python utils/citationimporter.py input.bib --open
+
+# Include entries that already have citations (for updating)
+python utils/citationimporter.py input.bib -i --include-filled
+```
+
+**Interactive mode workflow**:
+
+1. For each entry, a Google Scholar search opens in your browser
+2. You read the citation count from the page
+3. Enter the count when prompted (or skip/quit)
+4. Changes are saved when you quit or finish
+
+**Options**:
+
+- `--interactive`, `-i`: Interactive fill mode (recommended)
+- `--open`: Batch open URLs in browser tabs
+- `--batch-size N`: Number of URLs per batch (default: 5)
+- `--include-filled`: Include entries that already have citation values
+- `--output FILE`: Specify output file (default: overwrite input)
+
+**Note**: Entries with existing non-empty citation values are automatically skipped unless `--include-filled` is used.
+
 ### Find missing PDFs — `utils/missingfinder.py`
 
 Compare bib entries with your PDF library to find papers you need to download:
@@ -187,6 +224,7 @@ python utils/missingfinder.py input.bib papers.txt
 - `papers_file`: Directory listing of your PDF library (e.g., output of `ls` or `dir`)
 
 **Output files** (automatically generated):
+
 - `<bib_file>.missing_pdfs.txt` - Bib entries without PDFs
 - `<bib_file>.extras_in_library.txt` - PDFs not in bib
 - `<bib_file>.dups_in_library.txt` - Duplicate PDF groups
@@ -200,11 +238,13 @@ Check paper titles against external sources (CrossRef, DBLP, Semantic Scholar, a
 python utils/titleretriever.py input.bib
 ```
 
-**Output files** (automatically generated):
+**Output files** (automatlically generated):
+
 - `<bib_file>.title_report.txt` - Title verification report
 - `<bib_file>.titleretriever.log` - Execution log
 
 **Options**:
+
 - `--delay 0.5`: Delay between API requests (default: 0.5s)
 - `--quiet`: Suppress progress output
 - `--retry-errors <report>`: Re-check only failed entries from previous report
