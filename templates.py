@@ -192,7 +192,7 @@ PROCEEDINGS_TEMPLATES = {
         "day": "13--19",
     },
     ("Proceedings of the AAAI Conference on Artificial Intelligence", "2025"): {
-        "isbn": "978-1-57735-135-7",
+        "isbn": "978-1-57735-897-8",
         "venue": "Philadelphia, Pennsylvania, USA",
         "issn": "2374-3468",
         "address": "Washington, DC, USA",
