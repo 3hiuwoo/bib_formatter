@@ -10,22 +10,22 @@ This tool helps with manual citation count entry by:
 
 Usage:
     # Preview mode - show entries and URLs without changes
-    python citationimporter.py input.bib
+    python utils/citer.py input.bib
 
     # Open URLs in browser (batch of 5)
-    python citationimporter.py input.bib --open
+    python utils/citer.py input.bib --open
 
     # Open with custom batch size
-    python citationimporter.py input.bib --open --batch-size 10
+    python utils/citer.py input.bib --open --batch-size 10
 
     # Interactive mode - open URLs one by one and prompt for citation count
-    python citationimporter.py input.bib --interactive
+    python utils/citer.py input.bib --interactive
 
     # Write output with empty citation fields
-    python citationimporter.py input.bib --output output.bib
+    python utils/citer.py input.bib --output output.bib
 
     # Full workflow: open URLs and write output
-    python citationimporter.py input.bib --open --output output.bib
+    python utils/citer.py input.bib --open --output output.bib
 """
 
 from __future__ import annotations

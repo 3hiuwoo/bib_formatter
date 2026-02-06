@@ -320,6 +320,19 @@ The modified `.bib` file is not guaranteed to be well formatted. Use:
 
 ## 📋 TODO
 
-- [ ] Add NER to `checker.py` for advacned brackets quotation need detection for names over static vocab.
-- [ ] Improve the robustness of title case formatting.
-- [ ] Adapt to multiple input files.
+- `Completer.py` & `yaml2templates.py`:
+  - [ ] Integrate `Completer.py` with `yaml2templates.py` for unified template management workflow.
+  - [ ] Add auto guessing for fields able to be inferred from journal/conference names or existing templates (e.g., publisher, issn) when creating new templates.
+- `checker.py` & `templates.py` & `titlecases.py`:
+  - [ ] Add citation key legibility check (METHOD_AUTHOR_VENUEWITHYEAR).
+  - [ ] Add template-specific missing fields check (e.g., parts for ECCV, editor for some conferences, etc.)
+  - [ ] Improve the robustness of brackets quotation checking (e.g., skip single numbers, NER for names, etc.)
+  - [ ] Improve the robustness of title case checking (e.g., hyphenated words, some other cases, etc.)
+  - [ ] Enable interactive application of title case suggestions and fine-grained control over which patterns to apply title case to (e.g., only the hyphenated words and ignore the rest like conjunctions, prepositions, etc.)
+  - [ ] Optimizing the code structure: encapsulate each checking into sub-checker and let the `checker.py` call each of them for better modularity and maintainability.
+- `utils`:
+  - [ ] Integrate `pdfrenamer.py` with `missingfinder.py` to support unified alignment between PDF library and bibliography, and refactor to `manager.py`, which supports: 1. find bibliographies in `.bib` that are not in PDF library, 2. find PDFs in library that are not in `.bib`, 3. rename all PDFs by the citation key of matched bibliographies to eliminate the requirement of temporal order matching. All functions are based on title matching between PDF file names and bibliography titles, which eliminates the requirement of temporal order matching.
+  - [ ] Intergrate `citer.py` with `titleretriever.py` to support unified web searching and adapt it to `searcher.py`, which can search both the citation numbers and the original titles of bibliographies by fetching from API or openning web search result pages.
+  - [ ] To support bibliographies organized in folders, for simplicity, add `composer.py` to extract bibliographies recursively from the folder into a single `.bib` file for the tools to process, where comments specifying the source file path are inserted as separators between bibliographies from different files and the `composer.py` can also be used to split the composed `.bib` file back into multiple files by the source file path comments after processing. All original comments in each `.bib` file must be preserved during the composition and decomposition.
+- Further improvements:
+  - [ ] Package all stuffs into a CLI tool for distribution.
