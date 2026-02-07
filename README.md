@@ -137,9 +137,8 @@ bibcc/
 ├── logs/                 # Execution logs (auto-generated)
 │   └── *.log
 └── utils/
-    ├── citationimporter.py # Import citation counts from Google Scholar
-    ├── missingfinder.py    # Find PDFs missing from library
-    ├── pdfrenamer.py       # Batch rename PDFs to match bib keys
+    ├── citer.py            # Import citation counts from Google Scholar
+    ├── librarian.py        # PDF library ↔ bib alignment (missing, extra, rename)
     └── titleretriever.py   # Retrieve titles from external sources
 ```
 
@@ -159,9 +158,8 @@ All tools now use a unified logging strategy that:
 | ------ | --------------- | --------------- |
 | `checker.py` | `.missing_fields.txt`, `.title_case.txt`, `.smart_protection.txt` | `.checker.log` |
 | `completer.py` | `.conflicts.txt`, `.missing_templates.txt`, `.missing_templates.yaml`, `.incomplete_entries.txt` | `.completer.log` |
-| `citationimporter.py` | `.scholar_urls.txt` | `.citationimporter.log` |
-| `missingfinder.py` | `.missing_pdfs.txt`, `.extras_in_library.txt`, `.dups_in_library.txt` | `.missingfinder.log` |
-| `pdfrenamer.py` | — | `.pdfrenamer.log` |
+| `citer.py` | `.scholar_urls.txt` | `.citer.log` |
+| `librarian.py` | `.missing_pdfs.txt`, `.extra_pdfs.txt`, `.rename_report.txt` | `.librarian.log` |
 | `titleretriever.py` | `.title_report.txt` | `.titleretriever.log` |
 
 ### Using logging_utils.py
@@ -177,22 +175,22 @@ with Logger("my_tool", input_file="data.bib") as logger:
 
 ## 🛠️ Utilities
 
-### Import citation counts — `utils/citationimporter.py`
+### Import citation counts — `utils/citer.py`
 
 Manually import citation counts from Google Scholar with browser automation:
 
 ```bash
 # Preview mode - show entries needing citations
-python utils/citationimporter.py input.bib
+python utils/citer.py input.bib
 
 # Interactive mode - open URLs one by one and prompt for citation count
-python utils/citationimporter.py input.bib --interactive
+python utils/citer.py input.bib --interactive
 
 # Batch mode - open URLs in browser tabs (5 at a time)
-python utils/citationimporter.py input.bib --open
+python utils/citer.py input.bib --open
 
 # Include entries that already have citations (for updating)
-python utils/citationimporter.py input.bib -i --include-filled
+python utils/citer.py input.bib -i --include-filled
 ```
 
 **Interactive mode workflow**:
@@ -212,23 +210,38 @@ python utils/citationimporter.py input.bib -i --include-filled
 
 **Note**: Entries with existing non-empty citation values are automatically skipped unless `--include-filled` is used.
 
-### Find missing PDFs — `utils/missingfinder.py`
+### PDF library alignment — `utils/librarian.py`
 
-Compare bib entries with your PDF library to find papers you need to download:
+Unified tool for aligning your PDF library with your bibliography. Supports three modes:
 
 ```bash
-python utils/missingfinder.py input.bib papers.txt
+# Find bib entries missing from your PDF library
+python utils/librarian.py missing input.bib papers.txt
+
+# Find library PDFs not referenced in bib
+python utils/librarian.py extra input.bib papers.txt
+
+# Rename new PDFs to bib keys via title matching (preview)
+python utils/librarian.py rename input.bib ~/Downloads/papers --dry-run
+
+# Apply renames
+python utils/librarian.py rename input.bib ~/Downloads/papers
 ```
 
-- `bib_file`: Path to your .bib file
-- `papers_file`: Directory listing of your PDF library (e.g., output of `ls` or `dir`)
+**Subcommands**:
+
+- `missing` — Lists bib entries whose citation keys are absent from the library listing
+- `extra` — Lists PDFs in the library that have no corresponding bib entry
+- `rename` — Matches PDFs to bib entries by normalised title and renames to `<citation_key>.pdf`
+
+**Rename workflow**: Export PDFs from Zotero (or similar) with full titles in the filename (e.g., `Author 等 - 2025 - Full Paper Title.pdf`). The tool extracts the title from the filename, normalises it, and matches it against bib entry titles for exact renaming — no manual ordering required.
 
 **Output files** (automatically generated):
 
-- `<bib_file>.missing_pdfs.txt` - Bib entries without PDFs
-- `<bib_file>.extras_in_library.txt` - PDFs not in bib
-- `<bib_file>.dups_in_library.txt` - Duplicate PDF groups
-- `<bib_file>.missingfinder.log` - Execution log
+- `<bib_file>.missing_pdfs.txt` — Full bib entries for missing PDFs
+- `<bib_file>.extra_pdfs.txt` — Library PDFs not in bib
+- `<bib_file>.rename_report.txt` — Rename mapping (matched and unmatched)
+- `logs/<bib_file>.librarian.log` — Execution log
 
 ### Retrieve titles — `utils/titleretriever.py`
 
@@ -249,24 +262,6 @@ python utils/titleretriever.py input.bib
 - `--quiet`: Suppress progress output
 - `--retry-errors <report>`: Re-check only failed entries from previous report
 - `--ids ID1,ID2`: Check specific entries only
-
-### Batch rename PDFs — `utils/pdfrenamer.py`
-
-Rename downloaded PDFs to match bib keys based on temporal download order:
-
-```bash
-# Preview renames (no changes)
-python utils/pdfrenamer.py missing_pdfs.txt ~/Downloads/papers --dry-run
-
-# Apply renames
-python utils/pdfrenamer.py missing_pdfs.txt ~/Downloads/papers
-```
-
-- `report`: Path to the missing PDFs report (from `missingfinder.py`)
-- `pdf_folder`: Folder containing downloaded PDFs
-- `--dry-run`: Preview renames without applying
-
-**Workflow**: Download PDFs in the same order as listed in the report, then run the renamer to batch rename them to match bib keys.
 
 ## 🧾 Template Types
 
@@ -323,6 +318,7 @@ The modified `.bib` file is not guaranteed to be well formatted. Use:
 - `Completer.py` & `yaml2templates.py`:
   - [ ] Integrate `Completer.py` with `yaml2templates.py` for unified template management workflow.
   - [ ] Add auto guessing for fields able to be inferred from journal/conference names or existing templates (e.g., publisher, issn) when creating new templates.
+  - [ ] Improve the `.yaml` generation by initializing fields from existing bibliographies in the same journal/conference to avoid manual filling for each field.
 - `checker.py` & `templates.py` & `titlecases.py`:
   - [ ] Add citation key legibility check (METHOD_AUTHOR_VENUEWITHYEAR).
   - [ ] Add template-specific missing fields check (e.g., parts for ECCV, editor for some conferences, etc.)
@@ -331,8 +327,9 @@ The modified `.bib` file is not guaranteed to be well formatted. Use:
   - [ ] Enable interactive application of title case suggestions and fine-grained control over which patterns to apply title case to (e.g., only the hyphenated words and ignore the rest like conjunctions, prepositions, etc.)
   - [ ] Optimizing the code structure: encapsulate each checking into sub-checker and let the `checker.py` call each of them for better modularity and maintainability.
 - `utils`:
-  - [ ] Integrate `pdfrenamer.py` with `missingfinder.py` to support unified alignment between PDF library and bibliography, and refactor to `manager.py`, which supports: 1. find bibliographies in `.bib` that are not in PDF library, 2. find PDFs in library that are not in `.bib`, 3. rename all PDFs by the citation key of matched bibliographies to eliminate the requirement of temporal order matching. All functions are based on title matching between PDF file names and bibliography titles, which eliminates the requirement of temporal order matching.
-  - [ ] Intergrate `citer.py` with `titleretriever.py` to support unified web searching and adapt it to `searcher.py`, which can search both the citation numbers and the original titles of bibliographies by fetching from API or openning web search result pages.
-  - [ ] To support bibliographies organized in folders, for simplicity, add `composer.py` to extract bibliographies recursively from the folder into a single `.bib` file for the tools to process, where comments specifying the source file path are inserted as separators between bibliographies from different files and the `composer.py` can also be used to split the composed `.bib` file back into multiple files by the source file path comments after processing. All original comments in each `.bib` file must be preserved during the composition and decomposition.
+  - [x] ~~Integrate `pdfrenamer.py` with `missingfinder.py` to support unified alignment between PDF library and bibliography, and refactor to `librarian.py`.~~ Done — `librarian.py` supports: missing, extra, and title-based rename.
+  - [ ] Intergrate `citer.py` with `titleretriever.py` to support unified web searching and adapt it to `scholar.py`, which can search both the citation numbers and the original titles of bibliographies by fetching from API or openning web search result pages.
+  - [ ] To support bibliographies organized in folders, for simplicity, add `composer.py` to extract bibliographies recursively from the folder into a single `.bib` file for the tools to process, where comments specifying the source file path are inserted as separators between bibliographies from different files *and the `composer.py` can also be used to split the composed `.bib` file back into multiple files by the source file path comments after processing.* All original comments in each `.bib` file must be preserved during the composition and decomposition. **Note that the decomposition implementation can be skipped for now since the composition is important for deduplication while the decomposition can be easily done manually.**
 - Further improvements:
   - [ ] Package all stuffs into a CLI tool for distribution.
+  - [ ] Unify the output's formatting and storage (both logs and report files.)

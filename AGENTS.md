@@ -14,6 +14,11 @@ python checker.py input.bib --fields month       # Check missing fields
 python checker.py input.bib --title-case         # Title case check (APA style)
 python checker.py input.bib --quote --quote-terms Gaussian,Kalman  # Term protection
 python checker.py --check-templates              # Validate templates
+
+python utils/librarian.py missing  input.bib papers.txt           # Bib entries missing from PDF library
+python utils/librarian.py extra    input.bib papers.txt           # Library PDFs not in bib
+python utils/librarian.py rename   input.bib ~/Desktop/papers2 --dry-run  # Preview title-based rename
+python utils/librarian.py rename   input.bib ~/Desktop/papers2           # Apply rename
 ```
 
 ## Architecture
@@ -29,8 +34,7 @@ bibcc/
 ├── logs/              # Auto-generated log files
 └── utils/
     ├── citer.py             # Import citation counts from Google Scholar
-    ├── missingfinder.py     # Cross-reference bib entries with PDF library
-    ├── pdfrenamer.py        # Batch rename PDFs to match bib keys
+    ├── librarian.py         # Unified PDF library ↔ bib alignment (title-based)
     └── titleretriever.py    # Fetch titles from CrossRef/DBLP/arXiv
 ```
 
@@ -169,6 +173,7 @@ Escape backslashes for venue names: `venue_escaped = venue_raw.replace("\\", "\\
 | ------ | -------------- | ----------- |
 | checker.py | `.missing_fields.txt`, `.title_case.txt` | `logs/*.checker.log` |
 | completer.py | `.missing_templates.yaml`, `.conflicts.txt` | `logs/*.completer.log` |
+| librarian.py | `.missing_pdfs.txt`, `.extra_pdfs.txt`, `.rename_report.txt` | `logs/*.librarian.log` |
 | titleretriever.py | `.title_report.txt` | `logs/*.titleretriever.log` |
 
 ## Testing
