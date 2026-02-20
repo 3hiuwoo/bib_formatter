@@ -33,7 +33,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from logging_utils import Logger, get_repo_dir
+from logging_utils import SEPARATOR_THIN, SEPARATOR_WIDTH, Logger, get_repo_dir
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +302,7 @@ def cmd_rename(
         matched.append((pdf.name, new_name))
 
     # Summary
-    log(f"\n{'─' * 60}")
+    log(f"\n{SEPARATOR_THIN * SEPARATOR_WIDTH}")
     log(f"{prefix}Summary:")
     log(f"  Matched : {len(matched)}")
     log(f"  Unmatched : {len(unmatched)}")

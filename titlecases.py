@@ -106,10 +106,101 @@ def get_style(name: Optional[str]) -> TitleCaseStyle:
 # Backward-compat exposed default stopwords (APA)
 DEFAULT_STOPWORDS = APA_STOPWORDS
 
+# Common lowercase prefixes in hyphenated words that should stay lowercase
+# unless they are at the start of the title / subtitle.
+_LOWERCASE_PREFIXES: Set[str] = {
+    "e",
+    "re",
+    "pre",
+    "non",
+    "self",
+    "co",
+    "multi",
+    "cross",
+    "semi",
+    "anti",
+    "de",
+    "un",
+    "sub",
+    "inter",
+    "intra",
+    "ex",
+    "mid",
+    "over",
+    "under",
+    "out",
+    "post",
+    "meta",
+}
+
+# Known mixed-case words that should never be re-cased.
+KNOWN_MIXED_CASE: Set[str] = {
+    "iOS",
+    "macOS",
+    "iPhone",
+    "iPad",
+    "iPod",
+    "eBay",
+    "eBook",
+    "pH",
+    "mRNA",
+    "tRNA",
+    "rRNA",
+    "dB",
+    "MHz",
+    "GHz",
+    "kHz",
+    "arXiv",
+    "GitHub",
+    "YouTube",
+    "JavaScript",
+    "TypeScript",
+    "PyTorch",
+    "TensorFlow",
+    "ResNet",
+    "ImageNet",
+    "WordNet",
+    "BibTeX",
+    "LaTeX",
+    "DeepLab",
+    "OpenAI",
+    "ChatGPT",
+    "GPT",
+}
+
 
 def _split_tokens_preserve_space(text: str) -> List[str]:
     """Split text into tokens while preserving whitespace as separate elements."""
     return re.split(r"(\s+)", text)
+
+
+def _has_internal_capitals(word: str) -> bool:
+    """Check if a word has internal capitals (e.g., 'iOS', 'ResNet')."""
+    if len(word) < 2:
+        return False
+    # Skip first character, check if any lowercase→uppercase transition exists
+    for i in range(1, len(word)):
+        if word[i].isupper() and i > 0 and word[i - 1].islower():
+            return True
+    return False
+
+
+def _is_known_mixed_case(word: str) -> bool:
+    """Check if word is a known mixed-case term (case-insensitive lookup)."""
+    lower = word.lower()
+    for known in KNOWN_MIXED_CASE:
+        if known.lower() == lower:
+            return True
+    return False
+
+
+def _get_known_mixed_case(word: str) -> Optional[str]:
+    """Return the canonical form of a known mixed-case word, or None."""
+    lower = word.lower()
+    for known in KNOWN_MIXED_CASE:
+        if known.lower() == lower:
+            return known
+    return None
 
 
 def _titlecase_hyphenated(
@@ -118,19 +209,51 @@ def _titlecase_hyphenated(
     stopwords: Set[str],
     style: TitleCaseStyle,
 ) -> str:
-    """Apply title case to a hyphenated word (e.g., 'self-report' -> 'Self-Report')."""
+    """Apply title case to a hyphenated word (e.g., 'self-report' -> 'Self-Report').
+
+    Handles special cases:
+    - Known lowercase prefixes (e-, re-, pre-, self-, etc.) stay lowercase
+      unless the whole word is at a forced position (title start / subtitle).
+    - Known mixed-case words within parts are preserved.
+    - Acronyms (all-caps) within parts are preserved.
+    """
     parts = core.split("-")
     cased_parts = []
     for i, part in enumerate(parts):
         lower_part = part.lower()
         clean_part = re.sub(r"[^A-Za-z0-9]", "", part)
-        part_major = force_capitalize or style.hyphen_capitalize_all_parts
-        part_major = part_major or (len(clean_part) >= style.min_length_capitalize)
-        part_major = part_major or (lower_part not in stopwords)
 
-        if part.isupper():
-            cased = part  # keep acronyms
-        elif part_major:
+        # Check for known mixed-case form
+        known_form = _get_known_mixed_case(part)
+        if known_form is not None:
+            cased_parts.append(known_form)
+            continue
+
+        # Keep acronyms
+        if part.isupper() and len(part) >= 2:
+            cased_parts.append(part)
+            continue
+
+        # Preserve words with internal capitals (e.g., ResNet, BayesNet)
+        if _has_internal_capitals(part):
+            cased_parts.append(part)
+            continue
+
+        # First part follows the overall word's force/major rules
+        if i == 0:
+            part_major = force_capitalize
+            part_major = part_major or (len(clean_part) >= style.min_length_capitalize)
+            part_major = part_major or (lower_part not in stopwords)
+        else:
+            # Subsequent parts: check for lowercase prefixes
+            if lower_part in _LOWERCASE_PREFIXES and not force_capitalize:
+                cased_parts.append(lower_part)
+                continue
+            part_major = style.hyphen_capitalize_all_parts
+            part_major = part_major or (len(clean_part) >= style.min_length_capitalize)
+            part_major = part_major or (lower_part not in stopwords)
+
+        if part_major:
             cased = part.capitalize()
         else:
             cased = lower_part
@@ -144,7 +267,11 @@ def _titlecase_word(
     stopwords: Set[str],
     style: TitleCaseStyle,
 ) -> str:
-    """Apply title case rules to a single word, preserving punctuation and acronyms."""
+    """Apply title case rules to a single word, preserving punctuation and acronyms.
+
+    Handles slashes (encoder/decoder → Encoder/Decoder) and known mixed-case
+    words by preserving their canonical form.
+    """
     if not word:
         return word
 
@@ -157,6 +284,11 @@ def _titlecase_word(
     if not core:
         return word
 
+    # Check for known mixed-case form (e.g., iOS, macOS, PyTorch)
+    known_form = _get_known_mixed_case(core)
+    if known_form is not None:
+        return f"{prefix}{known_form}{suffix}"
+
     lower_core = core.lower()
     clean_core = re.sub(r"[^A-Za-z0-9]", "", core)
 
@@ -164,10 +296,31 @@ def _titlecase_word(
     is_major = is_major or (len(clean_core) >= style.min_length_capitalize)
     is_major = is_major or (lower_core not in stopwords)
 
+    # Handle slash-separated terms (e.g., encoder/decoder)
+    if "/" in core:
+        slash_parts = core.split("/")
+        cased_slashes = []
+        for j, sp in enumerate(slash_parts):
+            sp_known = _get_known_mixed_case(sp)
+            if sp_known is not None:
+                cased_slashes.append(sp_known)
+            elif sp.isupper() and len(sp) >= 2:
+                cased_slashes.append(sp)
+            elif _has_internal_capitals(sp):
+                cased_slashes.append(sp)
+            elif is_major or (j == 0 and force_capitalize):
+                cased_slashes.append(sp.capitalize())
+            else:
+                cased_slashes.append(sp.lower())
+        return f"{prefix}{'/'.join(cased_slashes)}{suffix}"
+
     if "-" in core:
         cased_core = _titlecase_hyphenated(core, is_major, stopwords, style)
     else:
-        if core.isupper():
+        # Preserve words with internal capitals
+        if _has_internal_capitals(core):
+            cased_core = core
+        elif core.isupper() and len(core) >= 2:
             cased_core = core  # keep acronyms
         elif is_major:
             cased_core = core.capitalize()
@@ -267,9 +420,15 @@ def check_title_case(
     stopwords: Optional[Set[str]] = None,
     style_name: str = "apa",
     apply: bool = False,
+    interactive: bool = False,
     log: Optional[Callable[[str], None]] = None,
 ) -> List[Tuple[str, str, str]]:
-    """Check title case and return list of (entry_id, current_title, suggested_title)."""
+    """Check title case and return list of (entry_id, current_title, suggested_title).
+
+    When *interactive* is ``True``, each suggestion is shown one at a time and
+    the user can accept, skip, manually edit, or quit.  Accepted changes are
+    applied at the end.
+    """
     log = log or print
     style = get_style(style_name)
     stopwords = stopwords or set(style.stopwords)
@@ -282,13 +441,18 @@ def check_title_case(
         log(f"❌ Error: File '{input_path}' not found.")
         return []
 
-    if not apply:
+    if not apply and not interactive:
         log(f"📝 Checking Title Case for {input_path}\n")
         log(f"{'ID':<40} | {'Issue':<40} | Suggestion")
         log("-" * 95)
 
     issues = 0
     changed: List[Tuple[str, str, str]] = []  # (ID, old, new)
+    # Stats for interactive mode
+    accepted = 0
+    skipped = 0
+    edited = 0
+
     for entry in bib_db.entries:
         title = entry.get("title")
         if not title:
@@ -302,15 +466,63 @@ def check_title_case(
 
         if normalized_orig != normalized_sugg:
             issues += 1
-            if apply:
+
+            if interactive:
+                entry_id = entry.get("ID", "")
+                log(f"\n--- [{issues}] {entry_id} ---")
+                log(f"  Current:   {title}")
+                log(f"  Suggested: {suggestion}")
+                while True:
+                    try:
+                        choice = (
+                            input("  [a]ccept / [s]kip / [e]dit / [q]uit > ")
+                            .strip()
+                            .lower()
+                        )
+                    except (EOFError, KeyboardInterrupt):
+                        choice = "q"
+                    if choice in ("a", "accept"):
+                        entry["title"] = suggestion
+                        changed.append((entry_id, title, suggestion))
+                        accepted += 1
+                        log("  ✅ Accepted.")
+                        break
+                    elif choice in ("s", "skip"):
+                        skipped += 1
+                        log("  ⏭️  Skipped.")
+                        break
+                    elif choice in ("e", "edit"):
+                        try:
+                            manual = input("  Enter new title: ").strip()
+                        except (EOFError, KeyboardInterrupt):
+                            log("  ⏭️  Skipped.")
+                            skipped += 1
+                            break
+                        if manual:
+                            entry["title"] = manual
+                            changed.append((entry_id, title, manual))
+                            edited += 1
+                            log("  ✏️  Custom title saved.")
+                        else:
+                            log("  ⏭️  Empty input, skipped.")
+                            skipped += 1
+                        break
+                    elif choice in ("q", "quit"):
+                        log("\n🛑 Quit. Applying accepted changes so far...")
+                        break
+                    else:
+                        log("  Invalid choice. Use a/s/e/q.")
+                if choice in ("q", "quit"):
+                    break
+            elif apply:
                 entry["title"] = suggestion
                 changed.append((entry.get("ID", ""), title, suggestion))
             else:
                 log(f"{entry.get('ID', ''):<40} | {title:<40} | {suggestion}")
                 changed.append((entry.get("ID", ""), title, suggestion))
 
-    if apply:
-        # Apply changes in-place while preserving comments and original formatting as much as possible
+    # Apply changes to file (for apply or interactive mode with accepted changes)
+    if apply or (interactive and changed):
         changed_map = {eid: new for eid, _, new in changed}
         replacements = 0
 
@@ -332,7 +544,6 @@ def check_title_case(
                 if m_title:
                     prefix, _old, suffix = m_title.groups()
                     new_val = changed_map[current_id]
-                    # newline = "" if not line.endswith("\n") else "\n"
                     new_lines.append(f"{prefix}{new_val}{suffix}")
                     replacements += 1
                     continue
@@ -341,13 +552,21 @@ def check_title_case(
 
         Path(input_path).write_text("".join(new_lines), encoding="utf-8")
 
-        if replacements == 0:
+        if interactive:
+            log(
+                f"\n📊 Interactive summary: {accepted} accepted, {edited} edited, {skipped} skipped"
+            )
+            if replacements:
+                log(f"✏️  Applied {replacements} title changes to {input_path}.")
+            else:
+                log("ℹ️  No changes applied.")
+        elif replacements == 0:
             log("✅ No title-case updates needed; file left unchanged.")
         else:
             log(
                 f"✏️  Applied title-case suggestions to {input_path} ({replacements} titles updated)."
             )
-    else:
+    elif not interactive:
         log("-" * 95)
         if issues == 0:
             log(

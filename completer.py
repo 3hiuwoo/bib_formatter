@@ -15,12 +15,13 @@ from __future__ import annotations
 
 import argparse
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import bibtexparser
 
-from logging_utils import Logger, get_repo_dir
+from logging_utils import Logger, get_repo_dir, write_report
 from templates import JOURNAL_TEMPLATES, PROCEEDINGS_TEMPLATES
 
 
@@ -31,25 +32,97 @@ def normalize_text(text: Optional[str]) -> str:
     return text.replace("{", "").replace("}", "").strip().lower()
 
 
-def _write_log(path: Path, header: str, rows: List[str]) -> None:
-    """Write a simple log file with header and rows."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = [header]
-    content.extend(rows if rows else ["(none)"])
-    path.write_text("\n".join(content) + "\n", encoding="utf-8")
+# Publisher inference from venue name patterns
+_PUBLISHER_PATTERNS: List[Tuple[str, str]] = [
+    ("ieee", "IEEE"),
+    ("acm", "Association for Computing Machinery"),
+    ("springer", "Springer"),
+    ("lecture notes", "Springer"),
+    ("elsevier", "Elsevier"),
+    ("aaai", "AAAI Press"),
+    ("pmlr", "PMLR"),
+    ("jmlr", "JMLR"),
+    ("nature", "Springer Nature"),
+    ("wiley", "Wiley"),
+    ("mdpi", "MDPI"),
+    ("oxford", "Oxford University Press"),
+    ("cambridge", "Cambridge University Press"),
+]
+
+# Known conference month patterns
+_CONFERENCE_MONTHS: Dict[str, str] = {
+    "cvpr": "June",
+    "iccv": "October",
+    "eccv": "October",
+    "neurips": "December",
+    "nips": "December",
+    "icml": "July",
+    "iclr": "May",
+    "aaai": "February",
+    "ijcai": "August",
+    "acl": "July",
+    "emnlp": "November",
+    "naacl": "June",
+    "kdd": "August",
+    "sigir": "July",
+    "www": "May",
+    "mm": "October",
+    "interspeech": "September",
+    "bmvc": "November",
+    "wacv": "January",
+    "miccai": "October",
+    "coling": "October",
+}
+
+
+# Fields to collect from bib entries for pre-filling YAML templates
+_JOURNAL_COLLECT_FIELDS = ["publisher", "issn", "address"]
+_PROCEEDINGS_COLLECT_FIELDS = [
+    "publisher",
+    "month",
+    "isbn",
+    "issn",
+    "editor",
+    "series",
+    "address",
+]
+
+
+def _guess_publisher(venue: str) -> str:
+    """Infer publisher from venue name patterns. Returns empty string if unknown."""
+    lower = venue.lower()
+    for pattern, publisher in _PUBLISHER_PATTERNS:
+        if pattern in lower:
+            return publisher
+    return ""
+
+
+def _guess_month(venue: str) -> str:
+    """Infer conference month from known conference name patterns."""
+    lower = venue.lower()
+    for pattern, month in _CONFERENCE_MONTHS.items():
+        if pattern in lower:
+            return month
+    return ""
 
 
 def _write_yaml_missing_templates(
     path: Path,
     missing_templates: Dict[Tuple[str, str], Tuple[str, str, str]],
+    bib_collected: Optional[Dict[Tuple[str, str], Dict[str, str]]] = None,
 ) -> None:
     """
     Write missing templates to a YAML file for user to fill in.
 
     The YAML format allows users to directly specify fields without
-    needing to collect BibTeX entries first.
+    needing to collect BibTeX entries first. Fields are pre-filled from
+    three sources (highest priority first):
+      1. Values from existing bib entries (``# from bib``)
+      2. Auto-guessed values from venue name patterns (``# auto-guessed``)
+      3. Empty placeholder
     """
     path.parent.mkdir(parents=True, exist_ok=True)
+    bib_collected = bib_collected or {}
 
     lines = [
         "# Missing templates - fill in the 'fields' section for each entry",
@@ -58,11 +131,13 @@ def _write_yaml_missing_templates(
         "# Entry types:",
         '#   - "journal": For journal articles (year-agnostic, keyed by journal name)',
         '#   - "proceedings": For conference papers (year-specific)',
+        "# Fields marked with '# auto-guessed' were inferred from the venue name.",
+        "# Fields marked with '# from bib' were sourced from existing bib entries.",
         "",
         "templates:",
     ]
 
-    for venue_raw, year, entry_type in missing_templates.values():
+    for key, (venue_raw, year, entry_type) in missing_templates.items():
         # Escape backslashes for YAML double-quoted strings (e.g., \& -> \\&)
         venue_escaped = venue_raw.replace("\\", "\\\\")
         lines.append(f'  - venue: "{venue_escaped}"')
@@ -70,19 +145,51 @@ def _write_yaml_missing_templates(
         lines.append(f"    type: {entry_type}")
         lines.append("    fields:")
 
+        guessed_publisher = _guess_publisher(venue_raw)
+        guessed_month = _guess_month(venue_raw) if entry_type != "journal" else ""
+        collected = bib_collected.get(key, {})
+
+        def _field_line(
+            name: str, value: str, comment: str, commented_out: bool = False
+        ) -> str:
+            prefix = "# " if commented_out else ""
+            return f'      {prefix}{name}: "{value}"{comment}'
+
+        def _resolve(
+            name: str, guessed: str = "", hint: str = "", commented_out: bool = False
+        ) -> str:
+            """Pick best value: bib > guessed > empty, with appropriate comment."""
+            bib_val = collected.get(name, "")
+            if bib_val:
+                return _field_line(name, bib_val, "  # from bib", commented_out)
+            if guessed:
+                return _field_line(name, guessed, "  # auto-guessed", commented_out)
+            comment = f"  {hint}" if hint else ""
+            return _field_line(name, "", comment, commented_out)
+
         if entry_type == "journal":
-            lines.append('      publisher: ""  # e.g., IEEE, Elsevier, Springer')
-            lines.append('      issn: ""')
-            lines.append('      # address: ""  # optional, e.g., New York, NY, USA')
+            lines.append(
+                _resolve(
+                    "publisher", guessed_publisher, "# e.g., IEEE, Elsevier, Springer"
+                )
+            )
+            lines.append(_resolve("issn"))
+            lines.append(
+                _resolve(
+                    "address",
+                    hint="# optional, e.g., New York, NY, USA",
+                    commented_out=True,
+                )
+            )
         else:
-            lines.append('      venue: ""  # e.g., City, Country')
-            lines.append('      publisher: ""')
-            lines.append('      month: ""  # e.g., June, October')
-            lines.append('      # isbn: ""')
-            lines.append('      # issn: ""')
-            lines.append('      # editor: ""')
-            lines.append('      # series: ""')
-            lines.append('      # address: ""')
+            lines.append(_resolve("venue", hint="# e.g., City, Country"))
+            lines.append(_resolve("publisher", guessed_publisher))
+            lines.append(_resolve("month", guessed_month, "# e.g., June, October"))
+            lines.append(_resolve("isbn", commented_out=True))
+            lines.append(_resolve("issn", commented_out=True))
+            lines.append(_resolve("editor", commented_out=True))
+            lines.append(_resolve("series", commented_out=True))
+            lines.append(_resolve("address", commented_out=True))
         lines.append("")
 
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -164,6 +271,10 @@ def main(
     # Map normalized key -> (raw_venue, year, entry_type) for unique reporting
     missing_templates: Dict[Tuple[str, str], Tuple[str, str, str]] = {}
 
+    # Collect field values from bib entries for pre-filling YAML templates.
+    # key -> { field_name -> Counter of values }
+    bib_field_counters: Dict[Tuple[str, str], Dict[str, Counter]] = {}
+
     # Incomplete entries: missing year or venue (e.g., arxiv misc)
     # These are reported separately and do NOT contribute to the YAML file
     incomplete_entries: List[Tuple[str, str, str]] = []  # (entry_id, venue, year)
@@ -193,6 +304,18 @@ def main(
             else:
                 key = (clean_venue, clean_year)
             missing_templates.setdefault(key, (venue_raw, year, entry_type))
+
+            # Collect existing field values from this entry
+            collect_fields = (
+                _JOURNAL_COLLECT_FIELDS
+                if entry_type == "journal"
+                else _PROCEEDINGS_COLLECT_FIELDS
+            )
+            counters = bib_field_counters.setdefault(key, {})
+            for fname in collect_fields:
+                val = entry.get(fname, "").strip()
+                if val:
+                    counters.setdefault(fname, Counter())[val] += 1
             continue
 
         fields_to_add = {}
@@ -283,12 +406,12 @@ def main(
             log("\n✅ All complete entries matched existing templates.")
 
         # Write logs
-        _write_log(
+        write_report(
             conflict_log,
             "conflicts: entry_id\tfield\texisting\ttemplate",
             conflict_rows,
         )
-        _write_log(
+        write_report(
             missing_txt_log,
             "missing templates: venue\tyear\ttype",
             missing_rows,
@@ -296,7 +419,7 @@ def main(
 
         # Write incomplete entries log
         incomplete_log = output_dir / f"{base}.incomplete_entries.txt"
-        _write_log(
+        write_report(
             incomplete_log,
             "incomplete entries (missing year or venue): entry_id\tvenue\tyear",
             incomplete_rows,
@@ -305,7 +428,16 @@ def main(
         # Write YAML file for missing templates (new workflow!)
         # Only include entries with both venue and year (not incomplete ones)
         if missing_templates:
-            _write_yaml_missing_templates(missing_yaml_log, missing_templates)
+            # Flatten counters to most-common values
+            bib_collected: Dict[Tuple[str, str], Dict[str, str]] = {}
+            for tkey, field_counters in bib_field_counters.items():
+                bib_collected[tkey] = {
+                    fname: counter.most_common(1)[0][0]
+                    for fname, counter in field_counters.items()
+                }
+            _write_yaml_missing_templates(
+                missing_yaml_log, missing_templates, bib_collected
+            )
             log(f"\n📝 YAML template file created: {missing_yaml_log}")
             log(
                 "   Fill in the fields and run: python yaml2templates.py {} --update".format(
@@ -341,7 +473,8 @@ def main(
     log(f"✅ Done! Saved to {output_path} (Comments preserved)")
 
 
-if __name__ == "__main__":
+def build_parser() -> argparse.ArgumentParser:
+    """Build argument parser for BibTeX completer."""
     parser = argparse.ArgumentParser(
         description="Enhance a BibTeX (.bib) file by adding missing metadata fields from templates."
     )
@@ -358,8 +491,17 @@ if __name__ == "__main__":
         default="",
         help="Directory to write logs (conflicts/missing). Default: current directory.",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--update-templates",
+        action="store_true",
+        help="After YAML generation, invoke yaml2templates to update templates.py "
+        "and re-run completion. Requires that the YAML file has been filled in.",
+    )
+    return parser
 
+
+def run(args: argparse.Namespace) -> None:
+    """Run completer with parsed arguments."""
     dry_run = not bool(args.output)
     log_dir = Path(args.log_dir) if args.log_dir else None
 
@@ -371,3 +513,47 @@ if __name__ == "__main__":
             log_dir=log_dir,
             log=logger.log,
         )
+
+        # If --update-templates is set, invoke yaml2templates on the generated YAML
+        if args.update_templates:
+            from yaml2templates import yaml2templates as y2t
+
+            repo_dir = get_repo_dir()
+            base = Path(args.input).name
+            yaml_path = repo_dir / f"{base}.missing_templates.yaml"
+            templates_path = repo_dir / "templates.py"
+
+            if not yaml_path.exists():
+                logger.log("\nℹ️  No missing_templates.yaml found — nothing to update.")
+            else:
+                logger.log(f"\n🔄 Updating templates from {yaml_path}...")
+                y2t(
+                    yaml_path=yaml_path,
+                    templates_path=templates_path,
+                    update=True,
+                    dry_run=False,
+                )
+                logger.log("✅ Templates updated.")
+
+                # Re-run completion if output was requested
+                if args.output:
+                    logger.log(f"\n🔄 Re-running completion with updated templates...")
+                    # Force reload of templates module
+                    import importlib
+                    import templates as _tpl_mod
+
+                    importlib.reload(_tpl_mod)
+
+                    main(
+                        args.input,
+                        args.output,
+                        dry_run=False,
+                        log_dir=log_dir,
+                        log=logger.log,
+                    )
+
+
+if __name__ == "__main__":
+    parser = build_parser()
+    args = parser.parse_args()
+    run(args)

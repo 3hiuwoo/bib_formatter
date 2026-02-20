@@ -27,7 +27,23 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import IO, Optional, TextIO
+from typing import IO, List, Optional, TextIO
+
+# ---------------------------------------------------------------------------
+# Format constants — shared across all BibCC tools
+# ---------------------------------------------------------------------------
+
+SEPARATOR_WIDTH: int = 70
+"""Standard width for separator lines in logs and reports."""
+
+SEPARATOR_HEAVY: str = "="
+"""Character for heavy separators (headers, section boundaries)."""
+
+SEPARATOR_LIGHT: str = "-"
+"""Character for light separators (subsection breaks)."""
+
+SEPARATOR_THIN: str = "─"
+"""Character for thin separators (summary lines)."""
 
 
 def get_repo_dir() -> Path:
@@ -40,6 +56,30 @@ def get_logs_dir() -> Path:
     logs_dir = get_repo_dir() / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     return logs_dir
+
+
+# ---------------------------------------------------------------------------
+# Report-file writer — shared across tools
+# ---------------------------------------------------------------------------
+
+
+def write_report(path: Path, header: str, rows: List[str]) -> None:
+    """Write a simple report file with *header* followed by *rows*.
+
+    This is the canonical way to persist checker / completer output so that
+    every report file in the repository follows the same lightweight format::
+
+        <header line>
+        <row 1>
+        <row 2>
+        ...
+
+    If *rows* is empty the file will contain ``(none)`` as a placeholder.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = [header]
+    content.extend(rows if rows else ["(none)"])
+    path.write_text("\n".join(content) + "\n", encoding="utf-8")
 
 
 class Logger:
@@ -97,14 +137,14 @@ class Logger:
         try:
             self._file = open(self._log_path, "w", encoding="utf-8")
             # Write header
-            self._file.write(f"{'=' * 70}\n")
+            self._file.write(f"{SEPARATOR_HEAVY * SEPARATOR_WIDTH}\n")
             self._file.write(f"{tool_name.upper()} LOG\n")
             self._file.write(
                 f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
             if input_file:
                 self._file.write(f"Input: {input_file}\n")
-            self._file.write(f"{'=' * 70}\n\n")
+            self._file.write(f"{SEPARATOR_HEAVY * SEPARATOR_WIDTH}\n\n")
         except IOError as e:
             print(f"⚠️  Could not create log file {self._log_path}: {e}")
             self._file = None
@@ -141,11 +181,15 @@ class Logger:
             self._file.write(clean_message + "\n")
             self._file.flush()
 
-    def log_separator(self, char: str = "-", length: int = 70) -> None:
+    def log_separator(
+        self, char: str = SEPARATOR_LIGHT, length: int = SEPARATOR_WIDTH
+    ) -> None:
         """Log a separator line."""
         self.log(char * length)
 
-    def log_header(self, title: str, char: str = "=", length: int = 70) -> None:
+    def log_header(
+        self, title: str, char: str = SEPARATOR_HEAVY, length: int = SEPARATOR_WIDTH
+    ) -> None:
         """Log a header with title."""
         self.log(char * length)
         self.log(title)
@@ -159,7 +203,7 @@ class Logger:
     def close(self) -> None:
         """Close the log file and print summary."""
         if self._file:
-            self._file.write(f"\n{'=' * 70}\n")
+            self._file.write(f"\n{SEPARATOR_HEAVY * SEPARATOR_WIDTH}\n")
             self._file.write(
                 f"Log completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )

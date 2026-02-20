@@ -8,34 +8,53 @@
 mamba activate pmq                               # Required environment
 pip install bibtexparser pyyaml                  # Dependencies
 
-python completer.py input.bib                    # Preview completion
-python completer.py input.bib --output out.bib   # Write output
-python checker.py input.bib --fields month       # Check missing fields
-python checker.py input.bib --title-case         # Title case check (APA style)
-python checker.py input.bib --quote --quote-terms Gaussian,Kalman  # Term protection
-python checker.py --check-templates              # Validate templates
+# --- Unified CLI (recommended) ---
+python bibcc.py check    input.bib --fields month                  # Check missing fields
+python bibcc.py check    input.bib --title-case                    # Title case check (APA style)
+python bibcc.py check    input.bib --quote --quote-terms Gaussian  # Term protection
+python bibcc.py check    input.bib --check-keys                   # Citation key legibility
+python bibcc.py check    --check-templates                        # Validate templates
+python bibcc.py complete input.bib                                 # Preview completion
+python bibcc.py complete input.bib --output out.bib                # Write output
+python bibcc.py librarian missing  input.bib papers.txt           # Missing PDFs
+python bibcc.py librarian extra    input.bib papers.txt           # Extra PDFs
+python bibcc.py librarian rename   input.bib ~/papers --dry-run   # Preview rename
+python bibcc.py scholar  cite   input.bib                         # Citation URLs
+python bibcc.py scholar  titles input.bib                         # Title verification
+python bibcc.py compose  compose ./bibs combined.bib              # Compose .bib files
 
-python utils/librarian.py missing  input.bib papers.txt           # Bib entries missing from PDF library
-python utils/librarian.py extra    input.bib papers.txt           # Library PDFs not in bib
-python utils/librarian.py rename   input.bib ~/Desktop/papers2 --dry-run  # Preview title-based rename
-python utils/librarian.py rename   input.bib ~/Desktop/papers2           # Apply rename
+# --- Standalone tools (same options as above) ---
+python checker.py input.bib --fields month
+python completer.py input.bib --output out.bib
+python utils/librarian.py missing input.bib papers.txt
+python utils/scholar.py cite input.bib
+python utils/scholar.py titles input.bib
+python utils/composer.py compose ./bibs combined.bib
 ```
 
 ## Architecture
 
 ```text
 bibcc/
-├── completer.py       # Auto-fills missing BibTeX fields from templates
+├── bibcc.py           # Unified CLI entry point (check/complete/librarian/scholar/compose)
 ├── checker.py         # Quality checks: missing fields, title case, term protection
+├── completer.py       # Auto-fills missing BibTeX fields from templates
 ├── yaml2templates.py  # Updates templates.py from user-filled YAML
 ├── templates.py       # Template database (journals + proceedings)
 ├── titlecases.py      # APA-style title case transformation
-├── logging_utils.py   # Unified logging (stdout + file)
+├── logging_utils.py   # Unified logging, report writing, format constants
 ├── logs/              # Auto-generated log files
+├── checkers/          # Sub-checker modules (imported by checker.py)
+│   ├── __init__.py
+│   ├── citation_keys.py      # METHOD_AUTHOR_VENUEYEAR convention check
+│   ├── missing_fields.py     # Required field detection
+│   ├── smart_protection.py   # Brace protection for technical terms
+│   ├── template_fields.py    # Template completeness check
+│   └── title_case.py         # Title case wrapper
 └── utils/
-    ├── citer.py             # Import citation counts from Google Scholar
-    ├── librarian.py         # Unified PDF library ↔ bib alignment (title-based)
-    └── titleretriever.py    # Fetch titles from CrossRef/DBLP/arXiv
+    ├── scholar.py       # Citation counts + title verification (cite/titles)
+    ├── librarian.py     # PDF library ↔ bib alignment (missing/extra/rename)
+    └── composer.py      # Compose .bib files from folders into one file
 ```
 
 ### Template System
@@ -105,16 +124,38 @@ path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(content, encoding="utf-8")
 ```
 
-### Logging
+### Logging & Output Formatting
+
+Always keep output format consistent regarding emoji and characters used for status indicators and separator, etc.
+All format constants live in `logging_utils.py` and must be used instead of hard-coded values:
 
 ```python
-from logging_utils import Logger
+from logging_utils import (
+    SEPARATOR_WIDTH,    # 70 — standard width for all separators
+    SEPARATOR_HEAVY,    # "=" — headers, section boundaries
+    SEPARATOR_LIGHT,    # "-" — subsection breaks
+    SEPARATOR_THIN,     # "─" — summary lines
+    Logger,
+    write_report,       # Shared report-file writer
+    get_repo_dir,
+)
 
+# Logger usage
 with Logger("checker", input_file="my.bib") as logger:
     logger.log("Processing...")
     logger.log("Found 10 entries", prefix="✅")
 # Auto-saves to: logs/my.bib.checker.log
+
+# Report file usage (canonical format: header + rows)
+from pathlib import Path
+write_report(Path("out.txt"), "header\tcol1\tcol2", ["row1", "row2"])
+
+# Separators — always use constants, never hard-code widths
+logger.log(SEPARATOR_HEAVY * SEPARATOR_WIDTH)  # ====...====
+logger.log(SEPARATOR_LIGHT * SEPARATOR_WIDTH)  # ----...----
 ```
+
+**Important**: Never use raw `print()` in tool code — always accept and use a `log: Callable[[str], None]` callback.
 
 ### Text Normalization
 
@@ -133,12 +174,27 @@ DEFAULT_VOCAB = {"gaussian", "bayesian", "markov"}
 
 ### CLI Pattern
 
+Every tool exposes `build_parser()` → `run(args)` for integration with `bibcc.py`:
+
 ```python
-parser = argparse.ArgumentParser(description="BibTeX Quality Checker")
-parser.add_argument("input", help="Input .bib file")
-parser.add_argument("--output", "-o", help="Output file path")
-parser.add_argument("--dry-run", action="store_true")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="BibTeX Quality Checker")
+    parser.add_argument("input", help="Input .bib file")
+    parser.add_argument("--output", "-o", help="Output file path")
+    parser.add_argument("--dry-run", action="store_true")
+    return parser
+
+def run(args: argparse.Namespace) -> None:
+    """Run tool with parsed arguments."""
+    ...
+
+if __name__ == "__main__":
+    parser = build_parser()
+    args = parser.parse_args()
+    run(args)
 ```
+
+Utils tools (`librarian.py`, `scholar.py`, `composer.py`) use `build_parser()` + `main()` with subparsers.
 
 ## Key Patterns
 
@@ -171,10 +227,11 @@ Escape backslashes for venue names: `venue_escaped = venue_raw.replace("\\", "\\
 
 | Tool | Report Files | Log Files |
 | ------ | -------------- | ----------- |
-| checker.py | `.missing_fields.txt`, `.title_case.txt` | `logs/*.checker.log` |
-| completer.py | `.missing_templates.yaml`, `.conflicts.txt` | `logs/*.completer.log` |
+| checker.py | `.missing_fields.txt`, `.title_case.txt`, `.citation_keys.txt`, `.smart_protection.txt` | `logs/*.checker.log` |
+| completer.py | `.missing_templates.yaml`, `.conflicts.txt`, `.incomplete_entries.txt` | `logs/*.completer.log` |
 | librarian.py | `.missing_pdfs.txt`, `.extra_pdfs.txt`, `.rename_report.txt` | `logs/*.librarian.log` |
-| titleretriever.py | `.title_report.txt` | `logs/*.titleretriever.log` |
+| scholar.py | `.title_report.txt`, `.scholar_urls.txt` | `logs/*.scholar.cite.log`, `logs/*.scholar.titles.log` |
+| composer.py | (composed .bib file) | `logs/*.composer.log` |
 
 ## Testing
 
